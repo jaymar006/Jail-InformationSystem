@@ -166,7 +166,7 @@ exports.getScannedVisitors = async (req, res) => {
 
 exports.addScannedVisitor = async (req, res) => {
   try {
-    let { visitor_name, pdl_name, dorm, relationship, contact_number } = req.body;
+    let { visitor_name, pdl_name, dorm, relationship, contact_number, device_time } = req.body;
     if (!visitor_name || !pdl_name || !dorm) {
       return res.status(400).json({ error: 'visitor_name, pdl_name, and dorm are required' });
     }
@@ -183,15 +183,22 @@ exports.addScannedVisitor = async (req, res) => {
 
     console.log('Found openScan:', openScan);
 
-    const now = new Date();
+    // Use client-provided device time if valid ISO string; fallback to server time
+    let now;
+    if (device_time) {
+      const parsed = new Date(device_time);
+      now = isNaN(parsed.getTime()) ? new Date() : parsed;
+    } else {
+      now = new Date();
+    }
 
     if (openScan) {
       if (!openScan.time_out) {
         const localTimeOut = now.toISOString();
         await ScannedVisitor.updateTimeOut(openScan.id, localTimeOut);
-        return res.status(200).json({ message: `Visitor "${visitor_name}" scan timed out`, id: openScan.id, time_out: localTimeOut });
+        return res.status(200).json({ message: `Visitor "${visitor_name}" scan timed out`, id: openScan.id, time_out: localTimeOut, action: 'time_out' });
       } else {
-        return res.status(200).json({ message: `Visitor "${visitor_name}" has already timed out`, id: openScan.id, time_out: openScan.time_out });
+        return res.status(200).json({ message: `Visitor "${visitor_name}" has already timed out`, id: openScan.id, time_out: openScan.time_out, action: 'already_timed_out' });
       }
     } else {
       const localTimeIn = now.toISOString();
@@ -207,7 +214,7 @@ exports.addScannedVisitor = async (req, res) => {
       };
       const result = await ScannedVisitor.add(scannedVisitorData);
 
-      return res.status(201).json({ message: 'Scanned visitor added', id: result.insertId });
+      return res.status(201).json({ message: 'Scanned visitor added', id: result.insertId, time_in: localTimeIn, action: 'time_in' });
     }
   } catch (error) {
     console.error('Error in addScannedVisitor:', error);

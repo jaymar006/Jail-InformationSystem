@@ -8,7 +8,6 @@ const Dashboard = () => {
   const [visitors, setVisitors] = useState([]);
   const [scanError, setScanError] = useState(null);
   const [resetTrigger, setResetTrigger] = useState(0);
-  const [scannedVisitorsSet, setScannedVisitorsSet] = useState(new Set());
 
   const [selectedVisitorId, setSelectedVisitorId] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -30,6 +29,13 @@ const Dashboard = () => {
     const date = new Date(isoString);
     date.setHours(date.getHours() + hours);
     return date.toISOString();
+  };
+
+  const toInputTimeHHMMSS = (isoString) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   };
 
   const capitalizeWords = (str) => {
@@ -84,29 +90,27 @@ const Dashboard = () => {
       return;
     }
 
-    const visitorKey = `[${visitorName}][${pdlName}][${dorm}]`;
-
     try {
-      await api.post('/api/scanned_visitors', {
+      const response = await api.post('/api/scanned_visitors', {
         visitor_name: visitorName,
         pdl_name: pdlName,
         dorm,
         relationship,
-        contact_number: contactNumber
+        contact_number: contactNumber,
+        device_time: new Date().toISOString()
       });
 
       setScanError(null);
 
-      if (scannedVisitorsSet.has(visitorKey)) {
+      const action = response?.data?.action;
+      if (action === 'time_out') {
         alert('Successful time out');
-        setScannedVisitorsSet(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(visitorKey);
-          return newSet;
-        });
-      } else {
+      } else if (action === 'time_in') {
         alert('Successful time in');
-        setScannedVisitorsSet(prev => new Set(prev).add(visitorKey));
+      } else if (action === 'already_timed_out') {
+        alert('This visitor has already timed out.');
+      } else {
+        alert('Scan recorded.');
       }
 
       fetchVisitors();
@@ -128,8 +132,8 @@ const Dashboard = () => {
       return;
     }
 
-    setEditTimeIn(visitor.created_at ? addHours(visitor.created_at, 8).substring(11, 19) : '');
-    setEditTimeOut(visitor.time_out ? addHours(visitor.time_out, 8).substring(11, 19) : '');
+    setEditTimeIn(visitor.time_in ? toInputTimeHHMMSS(visitor.time_in) : '');
+    setEditTimeOut(visitor.time_out ? toInputTimeHHMMSS(visitor.time_out) : '');
     setShowEditModal(true);
   };
 
@@ -158,7 +162,7 @@ const Dashboard = () => {
   };
 
   const filteredVisitors = visitors.filter(
-    v => getDateString(v.created_at) === currentDateString
+    v => getDateString(v.time_in) === currentDateString
   );
 
   const handleDelete = async () => {
@@ -237,8 +241,8 @@ const Dashboard = () => {
                       <td>{capitalizeWords(v.visitor_name)}</td>
                       <td>{capitalizeWords(v.pdl_name)}</td>
                       <td>{capitalizeWords(v.dorm)}</td>
-                      <td>{formatTime(v.created_at)}</td>
-                      <td>{v.time_out ? formatTime(addHours(v.time_out, 8)) : ''}</td>
+                      <td>{formatTime(v.time_in)}</td>
+                      <td>{v.time_out ? formatTime(v.time_out) : ''}</td>
                     </tr>
                   ))
                 )}
