@@ -100,6 +100,7 @@ const VisitorPage = () => {
     setVisitorForm({
       name: '',
       relationship: '',
+      age: '',
       address: '',
       valid_id: '',
       date_of_application: '',
@@ -107,10 +108,53 @@ const VisitorPage = () => {
     });
   };
 
+  // Helpers for input validation/formatting
+  const toTitleCase = (value) => {
+    if (!value) return '';
+    return value
+      .toLowerCase()
+      .split(' ')
+      .filter(Boolean)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  const normalizeRelationship = (value) => {
+    if (!value) return '';
+    const lettersAndSpaces = value.replace(/[^A-Za-z\s]/g, ' ');
+    return toTitleCase(lettersAndSpaces);
+  };
+
+  const normalizeAddress = (value) => toTitleCase(value || '');
+
+  const normalizeContactNumber = (value) => {
+    if (!value) return '';
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    return digits;
+  };
+
+  const clampAge = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    const num = Math.max(0, Math.min(150, parseInt(value, 10) || 0));
+    return String(num);
+  };
+
   const handleAddVisitor = async (e) => {
     e.preventDefault();
+    const contact = normalizeContactNumber(visitorForm.contact_number);
+    if (!/^09\d{9}$/.test(contact)) {
+      alert('Contact number must be 11 digits and start with 09.');
+      return;
+    }
+    const payload = {
+      ...visitorForm,
+      relationship: normalizeRelationship(visitorForm.relationship),
+      address: normalizeAddress(visitorForm.address),
+      contact_number: contact,
+      age: clampAge(visitorForm.age)
+    };
     try {
-      const response = await api.post(`/api/pdls/${pdlId}/visitors`, visitorForm);
+      const response = await api.post(`/api/pdls/${pdlId}/visitors`, payload);
       alert(response.data.message || 'Visitor added successfully');
       setShowAddModal(false);
       resetForm();
@@ -131,8 +175,20 @@ const VisitorPage = () => {
 
   const handleEditVisitor = async (e) => {
     e.preventDefault();
+    const contact = normalizeContactNumber(visitorForm.contact_number);
+    if (!/^09\d{9}$/.test(contact)) {
+      alert('Contact number must be 11 digits and start with 09.');
+      return;
+    }
+    const payload = {
+      ...visitorForm,
+      relationship: normalizeRelationship(visitorForm.relationship),
+      address: normalizeAddress(visitorForm.address),
+      contact_number: contact,
+      age: clampAge(visitorForm.age)
+    };
     try {
-      await api.put(`/api/visitors/${editingVisitorId}`, visitorForm);
+      await api.put(`/api/visitors/${editingVisitorId}`, payload);
       alert('Visitor updated successfully');
       setShowEditModal(false);
       resetForm();
@@ -386,16 +442,17 @@ const VisitorPage = () => {
                   type="text"
                   placeholder=""
                   value={visitorForm.relationship}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, relationship: e.target.value })}
+                  onChange={(e) => setVisitorForm({ ...visitorForm, relationship: normalizeRelationship(e.target.value) })}
                   required
                 />
                 <label>Age:</label>
                 <input
                   type="number"
                   min="0"
+                  max="150"
                   placeholder=""
                   value={visitorForm.age}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, age: e.target.value })}
+                  onChange={(e) => setVisitorForm({ ...visitorForm, age: clampAge(e.target.value) })}
                   required
                 />
                 <label>Address:</label>
@@ -427,7 +484,11 @@ const VisitorPage = () => {
                   type="text"
                   placeholder=""
                   value={visitorForm.contact_number}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: e.target.value })}
+                  onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: normalizeContactNumber(e.target.value) })}
+                  pattern="09\\d{9}"
+                  inputMode="numeric"
+                  maxLength={11}
+                  title="Contact number must be 11 digits and start with 09"
                   required
                 />
                 <div className="common-modal-buttons">
@@ -457,16 +518,17 @@ const VisitorPage = () => {
                   type="text"
                   placeholder="Relationship"
                   value={visitorForm.relationship}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, relationship: e.target.value })}
+                  onChange={(e) => setVisitorForm({ ...visitorForm, relationship: normalizeRelationship(e.target.value) })}
                   required
                 />
                 <label>Age:</label>
                 <input
                   type="number"
                   min="0"
+                  max="150"
                   placeholder="Age"
                   value={visitorForm.age}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, age: e.target.value })}
+                  onChange={(e) => setVisitorForm({ ...visitorForm, age: clampAge(e.target.value) })}
                   required
                 />
                 <label>Address:</label>
@@ -498,7 +560,11 @@ const VisitorPage = () => {
                   type="text"
                   placeholder="Contact Number"
                   value={visitorForm.contact_number}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: e.target.value })}
+                  onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: normalizeContactNumber(e.target.value) })}
+                  pattern="09\\d{9}"
+                  inputMode="numeric"
+                  maxLength={11}
+                  title="Contact number must be 11 digits and start with 09"
                   required
                 />
                 <div className="common-modal-buttons">

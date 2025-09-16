@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const crypto = require('crypto');
 
 const Visitor = {
   getAllByPdlId: async (pdlId) => {
@@ -43,18 +44,36 @@ const {
   contact_number
 } = data;
 
-const [countResult] = await db.query('SELECT COUNT(*) AS count FROM visitors');
-const count = countResult[0].count + 1;
-const visitorId = count.toString().padStart(3, '0');
+// Generate visitor_id in the form VIS-YY-XXXXXX (YY=last two digits of year, X=digit)
+const generateCandidateVisitorId = () => {
+  const yearTwoDigits = String(new Date().getFullYear()).slice(2);
+  const numericPart = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  return `VIS-${yearTwoDigits}-${numericPart}`;
+};
 
-const [result] = await db.query(
-  `INSERT INTO visitors (
-    pdl_id, visitor_id, name, relationship, age, address, valid_id, date_of_application, contact_number
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+let lastError = null;
+for (let attempt = 0; attempt < 10; attempt++) {
+  const visitorId = generateCandidateVisitorId();
+  try {
+    const [result] = await db.query(
+      `INSERT INTO visitors (
+        pdl_id, visitor_id, name, relationship, age, address, valid_id, date_of_application, contact_number
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [pdl_id, visitorId, name, relationship, age, address, valid_id, date_of_application, contact_number]
+    );
+    return result;
+  } catch (err) {
+    // If duplicate key on visitor_id, retry with a new id; otherwise, rethrow
+    if (err && (err.code === 'ER_DUP_ENTRY' || /duplicate/i.test(err.message))) {
+      lastError = err;
+      continue;
+    }
+    throw err;
+  }
+}
 
-  [pdl_id, visitorId, name, relationship, age, address, valid_id, date_of_application, contact_number]
-);
-return result;
+// If we somehow exhaust retries, throw the last duplicate error
+throw lastError || new Error('Failed to generate unique visitor_id');
   },
 
   update: async (id, data) => {
