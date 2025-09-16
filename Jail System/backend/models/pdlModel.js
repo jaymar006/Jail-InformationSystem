@@ -6,9 +6,9 @@ const PDL = {
       SELECT 
         id, first_name, middle_name, last_name, dorm_number,
         criminal_case_no, offense_charge, court_branch,
-        DATE(arrest_date) AS arrest_date,
-        DATE(commitment_date) AS commitment_date,
-        IF(first_time_offender = 1, 'Yes', 'No') AS first_time_offender
+        date(arrest_date) AS arrest_date,
+        date(commitment_date) AS commitment_date,
+        CASE WHEN first_time_offender = 1 THEN 'Yes' ELSE 'No' END AS first_time_offender
       FROM pdls
     `;
     return new Promise((resolve, reject) => {

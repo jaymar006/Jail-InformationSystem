@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from '../services/api';
 import * as XLSX from 'xlsx';
 import './common.css';
@@ -111,7 +111,6 @@ const Datas = () => {
   const itemsPerPage = 20;
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
   const navigate = useNavigate();
 
   // Initialize sortOption from URL query param
