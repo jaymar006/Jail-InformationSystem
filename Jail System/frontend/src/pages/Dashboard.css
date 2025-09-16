@@ -1,0 +1,79 @@
+.print-only {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-section, .print-section * {
+    visibility: visible;
+  }
+  .print-section {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .print-section h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  .print-section div.print-only {
+    display: block;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .print-section div.print-only img {
+    height: 60px;
+    margin-right: 10px;
+  }
+
+  /* Hide Manual Edit and Delete buttons in print */
+  #printable-dashboard > button.common-button,
+  #printable-dashboard > button.common-button.delete {
+    display: none;
+  }
+}
+
+.dashboard-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Modal buttons styling to match Datas.js Add PDL modal buttons */
+.common-modal-buttons {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.common-modal-buttons button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.common-modal-buttons button[type="submit"] {
+  background-color: #2563eb;
+  color: white;
+}
+
+.common-modal-buttons button[type="submit"]:hover {
+  background-color: #1e40af;
+}
+
+.common-modal-buttons button[type="button"] {
+  background-color: #ccc;
+  color: #333;
+}
+
+.common-modal-buttons button[type="button"]:hover {
+  background-color: #999;
+}
