@@ -20,7 +20,7 @@ const Dashboard = () => {
   const [lastScanAt, setLastScanAt] = useState(0);
   const [selectedDeleteIds, setSelectedDeleteIds] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
-  const [isScannerMinimized, setIsScannerMinimized] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
   const formatTime = (isoString) => {
     if (!isoString) return '';
@@ -61,6 +61,13 @@ const Dashboard = () => {
   };
 
   const currentDateString = getDateString(new Date().toISOString());
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: '' });
+    }, 3000);
+  };
 
   const fetchVisitors = async () => {
     try {
@@ -136,7 +143,7 @@ const Dashboard = () => {
           ...scanData,
           device_time: new Date().toISOString()
         });
-        setScanError('Successful time out');
+        showToast('Successful time out!', 'success');
         await fetchVisitors();
         setTimeout(() => setScanLocked(false), 1200);
         return;
@@ -174,13 +181,13 @@ const Dashboard = () => {
 
       const action = response?.data?.action;
       if (action === 'time_out') {
-        setScanError('Successful time out');
+        showToast('Successful time out!', 'success');
       } else if (action === 'time_in') {
-        setScanError('Successful time in');
+        showToast('Successful time in!', 'success');
       } else if (action === 'already_timed_out') {
         setScanError('This visitor has already timed out.');
       } else {
-        setScanError('Scan recorded.');
+        showToast('Scan recorded!', 'success');
       }
 
       fetchVisitors();
@@ -289,76 +296,66 @@ const Dashboard = () => {
   return (
     <div>
       <Header activePage="Dashboard" />
+      
+      {/* Toast Notification */}
+      {toast.show && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: toast.type === 'success' 
+              ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' 
+              : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+            color: 'white',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '14px',
+            fontWeight: '500',
+            animation: 'slideDown 0.3s ease-out',
+            maxWidth: '400px',
+            textAlign: 'center'
+          }}
+        >
+          <svg 
+            width="20" 
+            height="20" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            {toast.type === 'success' ? (
+              <>
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <path d="M22 4 12 14.01l-3-3"/>
+              </>
+            ) : (
+              <>
+                <path d="M18 6 6 18"/>
+                <path d="M6 6l12 12"/>
+              </>
+            )}
+          </svg>
+          {toast.message}
+        </div>
+      )}
+      
       <main className="dashboard-main">
         <section style={{ textAlign: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
-            <h2 style={{ margin: 0 }}>QR Code Scanner</h2>
-            <button
-              onClick={() => setIsScannerMinimized(!isScannerMinimized)}
-              style={{
-                background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
-                color: 'white',
-                border: 'none',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-              title={isScannerMinimized ? 'Show Scanner' : 'Hide Scanner'}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                {isScannerMinimized ? (
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                ) : (
-                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-                )}
-              </svg>
-              {isScannerMinimized ? 'Show Scanner' : 'Hide Scanner'}
-            </button>
+          <h2 style={{ margin: '0 0 16px 0' }}>QR Code Scanner</h2>
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <QRCodeScanner onScan={handleScan} onError={() => setScanError('QR Scan error')} resetTrigger={resetTrigger} />
           </div>
-          
-          {!isScannerMinimized && (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <QRCodeScanner onScan={handleScan} onError={() => setScanError('QR Scan error')} resetTrigger={resetTrigger} />
-              </div>
-              {scanError && <p className="error-message">{scanError}</p>}
-            </>
-          )}
-          
-          {isScannerMinimized && (
-            <div style={{ 
-              background: '#f8fafc', 
-              border: '2px dashed #d1d5db', 
-              borderRadius: '8px', 
-              padding: '20px', 
-              margin: '0 auto',
-              maxWidth: '400px',
-              color: '#6b7280'
-            }}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 12px', display: 'block' }}>
-                <rect x="3" y="3" width="5" height="5"/>
-                <rect x="16" y="3" width="5" height="5"/>
-                <rect x="3" y="16" width="5" height="5"/>
-                <path d="M21 16h-3a2 2 0 0 0-2 2v3"/>
-                <path d="M21 21v.01"/>
-                <path d="M12 7v3a2 2 0 0 1-2 2H7"/>
-                <path d="M3 12h.01"/>
-                <path d="M12 3h.01"/>
-                <path d="M12 16v.01"/>
-                <path d="M16 12h1"/>
-                <path d="M21 12v.01"/>
-                <path d="M12 21v-1"/>
-              </svg>
-              <p style={{ margin: 0, fontSize: '14px', fontWeight: '500' }}>QR Scanner is minimized</p>
-              <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>Click "Show Scanner" to scan visitor QR codes</p>
-            </div>
-          )}
+          {scanError && <p className="error-message">{scanError}</p>}
         </section>
 
         <section>
@@ -462,31 +459,143 @@ const Dashboard = () => {
         {/* Purpose Selection Modal */}
         {showPurposeModal && (
           <div className="common-modal">
-            <div className="common-modal-content">
-              <h3>Select Visit Purpose</h3>
-              <p>Visitor: {pendingScanData?.visitor_name}</p>
-              <p>PDL: {pendingScanData?.pdl_name}</p>
-              <p>Dorm: {pendingScanData?.dorm}</p>
-              <div style={{ marginTop: '20px' }}>
+            <div className="common-modal-content purpose-modal">
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <div style={{ 
+                  background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)', 
+                  color: 'white', 
+                  padding: '16px', 
+                  borderRadius: '12px',
+                  marginBottom: '20px'
+                }}>
+                  <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: '600' }}>Select Visit Purpose</h3>
+                  <div style={{ fontSize: '14px', opacity: '0.9' }}>
+                    <p style={{ margin: '4px 0' }}><strong>Visitor:</strong> {capitalizeWords(pendingScanData?.visitor_name)}</p>
+                    <p style={{ margin: '4px 0' }}><strong>PDL:</strong> {capitalizeWords(pendingScanData?.pdl_name)}</p>
+                    <p style={{ margin: '4px 0' }}><strong>Dorm:</strong> {capitalizeWords(pendingScanData?.dorm)}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: '20px',
+                marginBottom: '20px'
+              }}>
                 <button 
-                  className="common-button" 
+                  className="purpose-button conjugal" 
                   onClick={() => handlePurposeSelection('conjugal')}
-                  style={{ marginRight: '10px', backgroundColor: '#dc2626', color: 'white' }}
+                  style={{ 
+                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                    color: 'white',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    border: 'none',
+                    boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 6px 20px rgba(220, 38, 38, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                  }}
                 >
-                  <svg className="button-icon" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  Conjugal Visit
+                  <div style={{ 
+                    background: 'rgba(255, 255, 255, 0.1)', 
+                    borderRadius: '50%', 
+                    width: '60px', 
+                    height: '60px', 
+                    margin: '0 auto 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                      <path d="M12 14l3-3 3 3"/>
+                    </svg>
+                  </div>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600' }}>Conjugal Visit</h4>
+                  <p style={{ margin: '0', fontSize: '12px', opacity: '0.9' }}>Private family visit</p>
                 </button>
+                
                 <button 
-                  className="common-button" 
+                  className="purpose-button normal" 
                   onClick={() => handlePurposeSelection('normal')}
-                  style={{ backgroundColor: '#059669', color: 'white' }}
+                  style={{ 
+                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                    color: 'white',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    border: 'none',
+                    boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 6px 20px rgba(5, 150, 105, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(5, 150, 105, 0.3)';
+                  }}
                 >
-                  <svg className="button-icon" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  Normal Visit
+                  <div style={{ 
+                    background: 'rgba(255, 255, 255, 0.1)', 
+                    borderRadius: '50%', 
+                    width: '60px', 
+                    height: '60px', 
+                    margin: '0 auto 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                      <circle cx="9" cy="7" r="4"/>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                  </div>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600' }}>Normal Visit</h4>
+                  <p style={{ margin: '0', fontSize: '12px', opacity: '0.9' }}>Regular visitation</p>
+                </button>
+              </div>
+              
+              <div style={{ textAlign: 'center' }}>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowPurposeModal(false);
+                    setPendingScanData(null);
+                    setTimeout(() => setScanLocked(false), 500);
+                  }}
+                  style={{
+                    background: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Cancel
                 </button>
               </div>
             </div>

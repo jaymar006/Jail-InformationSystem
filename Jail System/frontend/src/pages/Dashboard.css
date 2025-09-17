@@ -80,3 +80,43 @@
 .common-modal-buttons button[type="button"]:hover {
   background-color: #999;
 }
+
+/* Purpose Modal Styling */
+.purpose-modal {
+  max-width: 600px;
+  width: 90%;
+}
+
+.purpose-button {
+  border: none;
+  background: none;
+  padding: 0;
+  width: 100%;
+}
+
+.purpose-button:focus {
+  outline: 2px solid #4b5563;
+  outline-offset: 2px;
+}
+
+.purpose-button:active {
+  transform: translateY(1px) !important;
+}
+
+/* Camera retry animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Toast notification animation */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
