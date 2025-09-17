@@ -14,6 +14,15 @@ const formatDateOnly = (dateStr) => {
   return `${month}/${day}/${year}`;
 };
 
+// Capitalize the first letter of each word, lowercasing the rest
+const capitalizeWords = (value) => {
+  if (!value) return '';
+  return value
+    .split(' ')
+    .map(word => word ? (word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()) : '')
+    .join(' ');
+};
+
 const exportVisitorsToExcel = async (pdls) => {
   try {
     console.log('Exporting visitors for pdls in order:', pdls.map(p => p.id));
@@ -533,44 +542,75 @@ const exportVisitorsToExcel = async () => {
 
       {showAddModal && (
         <div className="common-modal">
-          <div className="common-modal-content">
+          <div className="common-modal-content wide">
             <h3>Add a PDL</h3>
             <form onSubmit={handleAddSubmit}>
-              <label>Last Name</label>
-              <input type="text" placeholder="" value={addForm.last_name} onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })} required />
-              <label>First Name</label>
-              <input type="text" placeholder="" value={addForm.first_name} onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })} required />
-              <label>Middle Name</label>
-              <input type="text" placeholder="" value={addForm.middle_name} onChange={(e) => setAddForm({ ...addForm, middle_name: e.target.value })} />
-              <label>Dorm Number</label>
-              <input type="text" placeholder="" value={addForm.dorm_number} onChange={(e) => setAddForm({ ...addForm, dorm_number: e.target.value })} required />
-              <label>Criminal Case no.</label>
-              <input type="text" placeholder="" value={addForm.criminal_case_no} onChange={(e) => setAddForm({ ...addForm, criminal_case_no: e.target.value })} />
-              <label>Offense Charge</label>
-              <input type="text" placeholder="" value={addForm.offense_charge} onChange={(e) => setAddForm({ ...addForm, offense_charge: e.target.value })} />
-              <label>Court Branch</label>
-              <input type="text" placeholder="" value={addForm.court_branch} onChange={(e) => setAddForm({ ...addForm, court_branch: e.target.value })} />
-              <label>Arrest Date</label>
-              <input
-                type="date"
-                value={addForm.arrest_date}
-                max={new Date().toISOString().split('T')[0]}
-                onChange={(e) => setAddForm({ ...addForm, arrest_date: e.target.value })}
-              />
-              <label>Commitment Date</label>
-              <input
-                type="date"
-                value={addForm.commitment_date}
-                max={new Date().toISOString().split('T')[0]}
-                onChange={(e) => setAddForm({ ...addForm, commitment_date: e.target.value })}
-              />
-              <label>
-                First Time Offender:
-                <select value={addForm.first_time_offender} onChange={(e) => setAddForm({ ...addForm, first_time_offender: e.target.value })}>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
-              </label>
+              <div className="form-grid">
+                <div className="form-row">
+                  <div className="form-col">
+                    <label>Last Name</label>
+                    <input type="text" placeholder="Last Name" value={addForm.last_name} onChange={(e) => setAddForm({ ...addForm, last_name: capitalizeWords(e.target.value) })} required />
+                  </div>
+                  <div className="form-col">
+                    <label>First Name</label>
+                    <input type="text" placeholder="First Name" value={addForm.first_name} onChange={(e) => setAddForm({ ...addForm, first_name: capitalizeWords(e.target.value) })} required />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-col">
+                    <label>Middle Name</label>
+                    <input type="text" placeholder="Middle Name" value={addForm.middle_name} onChange={(e) => setAddForm({ ...addForm, middle_name: capitalizeWords(e.target.value) })} />
+                  </div>
+                  <div className="form-col">
+                    <label>Dorm Number</label>
+                    <input type="text" placeholder="Dorm Number" value={addForm.dorm_number} onChange={(e) => setAddForm({ ...addForm, dorm_number: e.target.value })} required />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-col">
+                    <label>Criminal Case no.</label>
+                    <input type="text" placeholder="Criminal Case no." value={addForm.criminal_case_no} onChange={(e) => setAddForm({ ...addForm, criminal_case_no: e.target.value })} />
+                  </div>
+                  <div className="form-col">
+                    <label>Offense Charge</label>
+                    <input type="text" placeholder="Offense Charge" value={addForm.offense_charge} onChange={(e) => setAddForm({ ...addForm, offense_charge: e.target.value })} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-col">
+                    <label>Court Branch</label>
+                    <input type="text" placeholder="Court Branch" value={addForm.court_branch} onChange={(e) => setAddForm({ ...addForm, court_branch: e.target.value })} />
+                  </div>
+                  <div className="form-col">
+                    <label>First Time Offender</label>
+                    <select value={addForm.first_time_offender} onChange={(e) => setAddForm({ ...addForm, first_time_offender: e.target.value })}>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-col">
+                    <label>Arrest Date</label>
+                    <input
+                      type="date"
+                      value={addForm.arrest_date}
+                      max={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setAddForm({ ...addForm, arrest_date: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-col">
+                    <label>Commitment Date</label>
+                    <input
+                      type="date"
+                      value={addForm.commitment_date}
+                      max={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setAddForm({ ...addForm, commitment_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="common-modal-buttons">
                 <button type="submit">Submit</button>
                 <button type="button" onClick={() => setShowAddModal(false)}>Cancel</button>
@@ -586,11 +626,11 @@ const exportVisitorsToExcel = async () => {
             <h3>Edit PDL</h3>
             <form onSubmit={handleEditSubmit}>
               <label>Last Name</label>
-              <input type="text" placeholder="Last Name" value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} required />
+              <input type="text" placeholder="Last Name" value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: capitalizeWords(e.target.value) })} required />
               <label>First Name</label>
-              <input type="text" placeholder="First Name" value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} required />
+              <input type="text" placeholder="First Name" value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: capitalizeWords(e.target.value) })} required />
               <label>Middle Name</label>
-              <input type="text" placeholder="Middle Name" value={editForm.middle_name} onChange={(e) => setEditForm({ ...editForm, middle_name: e.target.value })} />
+              <input type="text" placeholder="Middle Name" value={editForm.middle_name} onChange={(e) => setEditForm({ ...editForm, middle_name: capitalizeWords(e.target.value) })} />
               <label>Dorm Number</label>
               <input type="text" placeholder="Dorm Number" value={editForm.dorm_number} onChange={(e) => setEditForm({ ...editForm, dorm_number: e.target.value })} required />
               <label>Criminal Case No.</label>

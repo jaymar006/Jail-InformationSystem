@@ -49,13 +49,6 @@ const Logs = () => {
     return date.toLocaleTimeString();
   };
 
-  const addHoursToTime = (isoString, hours) => {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    date.setHours(date.getHours() + hours);
-    return date.toISOString();
-  };
-
   // Helper to capitalize the first letter of each word in a string
   const capitalizeWords = (str) => {
     if (!str) return '';
@@ -98,8 +91,8 @@ const Logs = () => {
 
       // Add data rows
       groupedByDate[date].forEach((v) => {
-        const timeIn = v.time_in ? new Date(addHoursToTime(v.time_in, 8)).toLocaleTimeString() : '';
-        const timeOut = v.time_out ? new Date(addHoursToTime(v.time_out, 8)).toLocaleTimeString() : '';
+        const timeIn = v.time_in ? new Date(v.time_in).toLocaleTimeString() : '';
+        const timeOut = v.time_out ? new Date(v.time_out).toLocaleTimeString() : '';
         ws_data.push([capitalizeWords(v.visitor_name), v.contact_number, capitalizeWords(v.pdl_name), v.relationship, capitalizeWords(v.dorm), timeIn, timeOut]);
       });
 
@@ -268,9 +261,9 @@ const Logs = () => {
                   <td>{capitalizeWords(v.pdl_name)}</td>
                   <td>{v.relationship}</td>
                   <td>{capitalizeWords(v.dorm)}</td>
-                  <td>{v.created_at ? formatTimeOnly(v.created_at) : ''}</td>
-                  <td>{v.time_out ? formatTimeOnly(addHoursToTime(v.time_out, 8)) : ''}</td>
-                  <td>{v.created_at ? formatDateTime(v.created_at).split(',')[0] : ''}</td>
+                  <td>{v.time_in ? formatTimeOnly(v.time_in) : ''}</td>
+                  <td>{v.time_out ? formatTimeOnly(v.time_out) : ''}</td>
+                  <td>{v.time_in ? formatDateTime(v.time_in).split(',')[0] : ''}</td>
                 </tr>
               ))
             )}

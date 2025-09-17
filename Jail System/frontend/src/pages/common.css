@@ -202,3 +202,34 @@ body, .common-container {
   justify-content: flex-start;
   align-items: center;
 }
+
+/* Form grid utilities for better UX in modals */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 12px;
+}
+
+.form-row {
+  display: contents;
+}
+
+.form-col {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Make modal wider when using grid */
+.common-modal-content.wide {
+  width: 720px;
+  max-width: 95%;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .common-modal-content.wide {
+    width: 95%;
+  }
+}
