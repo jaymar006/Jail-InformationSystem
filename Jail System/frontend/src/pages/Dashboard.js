@@ -13,6 +13,13 @@ const Dashboard = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editTimeIn, setEditTimeIn] = useState('');
   const [editTimeOut, setEditTimeOut] = useState('');
+  const [showPurposeModal, setShowPurposeModal] = useState(false);
+  const [pendingScanData, setPendingScanData] = useState(null);
+  const [scanLocked, setScanLocked] = useState(false);
+  const [lastScanSig, setLastScanSig] = useState(null);
+  const [lastScanAt, setLastScanAt] = useState(0);
+  const [selectedDeleteIds, setSelectedDeleteIds] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   const formatTime = (isoString) => {
     if (!isoString) return '';
@@ -71,6 +78,7 @@ const Dashboard = () => {
 
   const handleScan = async (data) => {
     if (!data) return;
+    if (scanLocked) return;
 
     const regex = /\[(.*?)\]/g;
     const matches = [...data.matchAll(regex)].map(match => match[1]);
@@ -90,39 +98,111 @@ const Dashboard = () => {
       return;
     }
 
+    // Debounce same QR contents for a short window
+    const sig = `${visitorName}|${pdlName}|${dorm}`;
+    const nowMs = Date.now();
+    if (lastScanSig === sig && nowMs - lastScanAt < 5000) {
+      return; // ignore duplicate immediately after previous scan
+    }
+    setLastScanSig(sig);
+    setLastScanAt(nowMs);
+
+    // Lock scanning to prevent double fires from the same QR frame
+    setScanLocked(true);
+
+    // Preflight: ask backend if this is a time_in or time_out
     try {
-      const response = await api.post('/api/scanned_visitors', {
+      const preflight = await api.post('/api/scanned_visitors', {
         visitor_name: visitorName,
         pdl_name: pdlName,
         dorm,
         relationship,
         contact_number: contactNumber,
-        device_time: new Date().toISOString()
+        only_check: true
+      });
+
+      const planned = preflight?.data?.action;
+      if (planned === 'time_out') {
+        // Directly execute time_out without purpose modal
+        const scanData = {
+          visitor_name: visitorName,
+          pdl_name: pdlName,
+          dorm,
+          relationship,
+          contact_number: contactNumber
+        };
+        await api.post('/api/scanned_visitors', {
+          ...scanData,
+          device_time: new Date().toISOString()
+        });
+        setScanError('Successful time out');
+        await fetchVisitors();
+        setTimeout(() => setScanLocked(false), 1200);
+        return;
+      }
+
+      // Otherwise show modal for purpose selection (time in)
+      setPendingScanData({
+        visitor_name: visitorName,
+        pdl_name: pdlName,
+        dorm,
+        relationship,
+        contact_number: contactNumber
+      });
+      setShowPurposeModal(true);
+    } catch (e) {
+      console.error('Preflight scan error:', e);
+      setScanError('Scan preflight failed');
+      setTimeout(() => setScanLocked(false), 800);
+    }
+  };
+
+  const handlePurposeSelection = async (purpose) => {
+    if (!pendingScanData) return;
+
+    setShowPurposeModal(false);
+
+    try {
+      const response = await api.post('/api/scanned_visitors', {
+        ...pendingScanData,
+        device_time: new Date().toISOString(),
+        purpose
       });
 
       setScanError(null);
 
       const action = response?.data?.action;
       if (action === 'time_out') {
-        alert('Successful time out');
+        setScanError('Successful time out');
       } else if (action === 'time_in') {
-        alert('Successful time in');
+        setScanError('Successful time in');
       } else if (action === 'already_timed_out') {
-        alert('This visitor has already timed out.');
+        setScanError('This visitor has already timed out.');
       } else {
-        alert('Scan recorded.');
+        setScanError('Scan recorded.');
       }
 
       fetchVisitors();
-      setResetTrigger(prev => prev + 1);
     } catch (error) {
       console.error('Error adding scanned visitor:', error);
       setScanError('Error adding scanned visitor');
     }
+
+    setPendingScanData(null);
+    // Unlock scanning after a short cooldown to avoid immediate re-trigger
+    setTimeout(() => setScanLocked(false), 2000);
   };
 
   const handleRowClick = (id) => {
     setSelectedVisitorId(id === selectedVisitorId ? null : id);
+  };
+
+  const openEditModalForRow = (visitor) => {
+    if (!visitor) return;
+    setSelectedVisitorId(visitor.id);
+    setEditTimeIn(visitor.time_in ? toInputTimeHHMMSS(visitor.time_in) : '');
+    setEditTimeOut(visitor.time_out ? toInputTimeHHMMSS(visitor.time_out) : '');
+    setShowEditModal(true);
   };
 
   const openEditModal = () => {
@@ -165,22 +245,43 @@ const Dashboard = () => {
     v => getDateString(v.time_in) === currentDateString
   );
 
-  const handleDelete = async () => {
-    if (!selectedVisitorId) {
-      alert('Please select a visitor to delete.');
-      return;
+  const handleToggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedDeleteIds([]);
+      setSelectAll(false);
+    } else {
+      const allIds = filteredVisitors.map(v => v.id);
+      setSelectedDeleteIds(allIds);
+      setSelectAll(true);
     }
+  };
 
-    if (!window.confirm('Are you sure you want to delete the selected visitor?')) return;
+  const handleToggleRowDelete = (id) => {
+    setSelectedDeleteIds(prev => {
+      if (prev.includes(id)) {
+        const next = prev.filter(x => x !== id);
+        if (selectAll && next.length !== filteredVisitors.length) setSelectAll(false);
+        return next;
+      } else {
+        const next = [...prev, id];
+        if (next.length === filteredVisitors.length) setSelectAll(true);
+        return next;
+      }
+    });
+  };
 
+  const handleDelete = async () => {
+    if (selectedDeleteIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedDeleteIds.length} record(s)?`)) return;
     try {
-      await api.delete(`/api/scanned_visitors/${selectedVisitorId}`);
+      await Promise.all(selectedDeleteIds.map(id => api.delete(`/api/scanned_visitors/${id}`)));
+      setSelectedDeleteIds([]);
+      setSelectAll(false);
       setSelectedVisitorId(null);
-      fetchVisitors();
-      alert('Record deleted successfully.');
+      await fetchVisitors();
     } catch (error) {
-      console.error('Failed to delete visitor:', error);
-      alert('Failed to delete visitor.');
+      console.error('Failed to delete visitors:', error);
+      alert('Failed to delete some visitors.');
     }
   };
 
@@ -188,9 +289,11 @@ const Dashboard = () => {
     <div>
       <Header activePage="Dashboard" />
       <main className="dashboard-main">
-        <section>
+        <section style={{ textAlign: 'center' }}>
           <h2>QR Code Scanner</h2>
-          <QRCodeScanner onScan={handleScan} onError={() => setScanError('QR Scan error')} resetTrigger={resetTrigger} />
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <QRCodeScanner onScan={handleScan} onError={() => setScanError('QR Scan error')} resetTrigger={resetTrigger} />
+          </div>
           {scanError && <p className="error-message">{scanError}</p>}
         </section>
 
@@ -208,26 +311,29 @@ const Dashboard = () => {
             </b>
             <h2 style={{ textAlign: 'center' }}>Allowed Visitors</h2>
 
-            <button className="common-button" onClick={openEditModal} style={{ marginBottom: '10px', marginRight: '10px' }}>
-              Manual Edit
-            </button>
-            <button className="common-button delete" onClick={handleDelete} style={{ marginBottom: '10px' }}>
-              Delete
-            </button>
 
             <table className="common-table">
               <thead>
                 <tr>
+                  <th>
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={handleToggleSelectAll}
+                    />
+                  </th>
                   <th>Visitor's Name</th>
                   <th>PDL's to be Visited</th>
                   <th>Dorm</th>
+                  <th>Purpose</th>
                   <th>Time In</th>
                   <th>Time Out</th>
+                  <th className="no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredVisitors.length === 0 ? (
-                  <tr><td colSpan="5">No records</td></tr>
+                  <tr><td colSpan="8">No records</td></tr>
                 ) : (
                   filteredVisitors.map(v => (
                     <tr
@@ -238,11 +344,27 @@ const Dashboard = () => {
                         cursor: 'pointer'
                       }}
                     >
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedDeleteIds.includes(v.id)}
+                          onChange={(e) => { e.stopPropagation(); handleToggleRowDelete(v.id); }}
+                        />
+                      </td>
                       <td>{capitalizeWords(v.visitor_name)}</td>
                       <td>{capitalizeWords(v.pdl_name)}</td>
                       <td>{capitalizeWords(v.dorm)}</td>
+                      <td>{v.purpose ? (v.purpose.charAt(0).toUpperCase() + v.purpose.slice(1)) : ''}</td>
                       <td>{formatTime(v.time_in)}</td>
                       <td>{v.time_out ? formatTime(v.time_out) : ''}</td>
+                      <td className="no-print">
+                        <button
+                          className="common-button edit no-print"
+                          onClick={(e) => { e.stopPropagation(); openEditModalForRow(v); }}
+                        >
+                          Edit
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -250,10 +372,45 @@ const Dashboard = () => {
             </table>
           </div>
 
-          <button className="common-button" onClick={() => window.print()} style={{ marginTop: '10px' }}>
-            Print Table
-          </button>
+          <div style={{ marginTop: '10px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
+            <button className="common-button" onClick={() => window.print()}>
+              Print Table
+            </button>
+            {selectedDeleteIds.length > 0 && (
+              <button className="common-button delete" onClick={handleDelete}>
+                Delete Selected ({selectedDeleteIds.length})
+              </button>
+            )}
+          </div>
         </section>
+
+        {/* Purpose Selection Modal */}
+        {showPurposeModal && (
+          <div className="common-modal">
+            <div className="common-modal-content">
+              <h3>Select Visit Purpose</h3>
+              <p>Visitor: {pendingScanData?.visitor_name}</p>
+              <p>PDL: {pendingScanData?.pdl_name}</p>
+              <p>Dorm: {pendingScanData?.dorm}</p>
+              <div style={{ marginTop: '20px' }}>
+                <button 
+                  className="common-button" 
+                  onClick={() => handlePurposeSelection('conjugal')}
+                  style={{ marginRight: '10px', backgroundColor: '#dc2626', color: 'white' }}
+                >
+                  Conjugal Visit
+                </button>
+                <button 
+                  className="common-button" 
+                  onClick={() => handlePurposeSelection('normal')}
+                  style={{ backgroundColor: '#059669', color: 'white' }}
+                >
+                  Normal Visit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit Modal */}
         {showEditModal && (

@@ -41,7 +41,8 @@ const {
   address,
   valid_id,
   date_of_application,
-  contact_number
+  contact_number,
+  verified_conjugal
 } = data;
 
 // Generate visitor_id in the form VIS-YY-XXXXXX (YY=last two digits of year, X=digit)
@@ -57,9 +58,10 @@ for (let attempt = 0; attempt < 10; attempt++) {
   try {
     const [result] = await db.query(
       `INSERT INTO visitors (
-        pdl_id, visitor_id, name, relationship, age, address, valid_id, date_of_application, contact_number
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [pdl_id, visitorId, name, relationship, age, address, valid_id, date_of_application, contact_number]
+        pdl_id, visitor_id, name, relationship, age, address, valid_id, date_of_application, contact_number, verified_conjugal
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ,
+      [pdl_id, visitorId, name, relationship, age, address, valid_id, date_of_application, contact_number, verified_conjugal ? 1 : 0]
     );
     return result;
   } catch (err) {

@@ -10,6 +10,9 @@ const Logs = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState('asc');
+
   useEffect(() => {
     const fetchVisitors = async () => {
       try {
@@ -57,6 +60,37 @@ const Logs = () => {
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
   };
+
+  // Sorting handlers
+  const onHeaderClick = (columnKey) => {
+    if (sortColumn === columnKey) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(columnKey);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedVisitors = [...allowedVisitors].sort((a, b) => {
+    if (!sortColumn) return 0;
+    const aValRaw = a[sortColumn];
+    const bValRaw = b[sortColumn];
+
+    // For time fields, sort by date value
+    if (['time_in', 'time_out', 'scan_date'].includes(sortColumn)) {
+      const aTime = aValRaw ? new Date(aValRaw).getTime() : 0;
+      const bTime = bValRaw ? new Date(bValRaw).getTime() : 0;
+      if (aTime < bTime) return sortDirection === 'asc' ? -1 : 1;
+      if (aTime > bTime) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    }
+
+    const aVal = (aValRaw ?? '').toString().toLowerCase();
+    const bVal = (bValRaw ?? '').toString().toLowerCase();
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   // Function to handle extraction and download of grouped table data by date as formatted Excel file
   const handleExtractTable = () => {
@@ -238,23 +272,23 @@ const Logs = () => {
           <table className="common-table">
             <thead>
             <tr>
-              <th>Visitor's Name</th>
-              <th>Contact Number</th>
-              <th>PDL Visited</th>
-              <th>Relationship</th>
-              <th>Dorm</th>
-              <th>Time In</th>
-              <th>Time Out</th>
-              <th>Date</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('visitor_name')}>Visitor's Name</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('contact_number')}>Contact Number</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('pdl_name')}>PDL Visited</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('relationship')}>Relationship</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('dorm')}>Dorm</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('time_in')}>Time In</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('time_out')}>Time Out</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('time_in')}>Date</th>
             </tr>
           </thead>
           <tbody>
-            {allowedVisitors.length === 0 ? (
+            {sortedVisitors.length === 0 ? (
               <tr>
                 <td colSpan="8">No records</td>
               </tr>
             ) : (
-              allowedVisitors.map((v) => (
+              sortedVisitors.map((v) => (
                 <tr key={v.id}>
                   <td>{capitalizeWords(v.visitor_name)}</td>
                   <td>{v.contact_number}</td>

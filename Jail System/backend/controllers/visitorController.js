@@ -44,7 +44,8 @@ const {
   address,
   valid_id,
   date_of_application,
-  contact_number
+  contact_number,
+  verified_conjugal
 } = req.body;
 
 if (!name || !relationship || age === undefined || !address || !valid_id || !date_of_application || !contact_number) {
@@ -61,7 +62,8 @@ const newVisitor = {
   address,
   valid_id,
   date_of_application,
-  contact_number
+  contact_number,
+  verified_conjugal
 };
 
 const insertResult = await Visitor.add(newVisitor);
@@ -166,7 +168,7 @@ exports.getScannedVisitors = async (req, res) => {
 
 exports.addScannedVisitor = async (req, res) => {
   try {
-    let { visitor_name, pdl_name, dorm, relationship, contact_number, device_time } = req.body;
+    let { visitor_name, pdl_name, dorm, relationship, contact_number, device_time, purpose, only_check } = req.body;
     if (!visitor_name || !pdl_name || !dorm) {
       return res.status(400).json({ error: 'visitor_name, pdl_name, and dorm are required' });
     }
@@ -177,9 +179,16 @@ exports.addScannedVisitor = async (req, res) => {
     relationship = relationship ? relationship.trim() : null;
     contact_number = contact_number ? contact_number.trim() : null;
 
-    console.log('addScannedVisitor input:', { visitor_name, pdl_name, dorm, relationship, contact_number });
+    console.log('addScannedVisitor input:', { visitor_name, pdl_name, dorm, relationship, contact_number, purpose });
 
     const openScan = await ScannedVisitor.findOpenScanByVisitorDetails(visitor_name, pdl_name, dorm);
+
+    if (only_check) {
+      if (openScan && !openScan.time_out) {
+        return res.status(200).json({ action: 'time_out' });
+      }
+      return res.status(200).json({ action: 'time_in_pending' });
+    }
 
     console.log('Found openScan:', openScan);
 
@@ -210,7 +219,8 @@ exports.addScannedVisitor = async (req, res) => {
         time_out: null,
         scan_date: localTimeIn,
         relationship,
-        contact_number
+        contact_number,
+        purpose: purpose || 'normal'
       };
       const result = await ScannedVisitor.add(scannedVisitorData);
 

@@ -37,7 +37,9 @@ const VisitorPage = () => {
     address: '',
     valid_id: '',
     date_of_application: '',
-    contact_number: ''
+    contact_number: '',
+    has_contact_number: true,
+    verified_conjugal: false
   });
   const [editingVisitorId, setEditingVisitorId] = useState(null);
   const [fetchError, setFetchError] = useState(null);
@@ -104,7 +106,9 @@ const VisitorPage = () => {
       address: '',
       valid_id: '',
       date_of_application: '',
-      contact_number: ''
+      contact_number: '',
+      has_contact_number: true,
+      verified_conjugal: false
     });
   };
 
@@ -141,8 +145,9 @@ const VisitorPage = () => {
 
   const handleAddVisitor = async (e) => {
     e.preventDefault();
-    const contact = normalizeContactNumber(visitorForm.contact_number);
-    if (!/^09\d{9}$/.test(contact)) {
+    const hasNumber = !!visitorForm.has_contact_number;
+    const contact = hasNumber ? normalizeContactNumber(visitorForm.contact_number) : 'N/A';
+    if (hasNumber && !/^09\d{9}$/.test(contact)) {
       alert('Contact number must be 11 digits and start with 09.');
       return;
     }
@@ -175,8 +180,9 @@ const VisitorPage = () => {
 
   const handleEditVisitor = async (e) => {
     e.preventDefault();
-    const contact = normalizeContactNumber(visitorForm.contact_number);
-    if (!/^09\d{9}$/.test(contact)) {
+    const hasNumber = !!visitorForm.has_contact_number;
+    const contact = hasNumber ? normalizeContactNumber(visitorForm.contact_number) : 'N/A';
+    if (hasNumber && !/^09\d{9}$/.test(contact)) {
       alert('Contact number must be 11 digits and start with 09.');
       return;
     }
@@ -238,7 +244,9 @@ const VisitorPage = () => {
       address: visitor.address || '',
       valid_id: visitor.valid_id || '',
       date_of_application: formatDateForInput(visitor.date_of_application),
-      contact_number: visitor.contact_number || ''
+      contact_number: visitor.contact_number || '',
+      has_contact_number: !!(visitor.contact_number && String(visitor.contact_number).trim() !== ''),
+      verified_conjugal: !!visitor.verified_conjugal
     });
     setEditingVisitorId(visitor.id);
     setShowEditModal(true);
@@ -445,6 +453,16 @@ const VisitorPage = () => {
                   onChange={(e) => setVisitorForm({ ...visitorForm, relationship: normalizeRelationship(e.target.value) })}
                   required
                 />
+                <div style={{ margin: '4px 0 10px 0' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="checkbox"
+                      checked={visitorForm.verified_conjugal}
+                      onChange={(e) => setVisitorForm({ ...visitorForm, verified_conjugal: e.target.checked })}
+                    />
+                    Verified for conjugal visit
+                  </label>
+                </div>
                 <label>Age:</label>
                 <input
                   type="number"
@@ -479,17 +497,28 @@ const VisitorPage = () => {
                   onChange={(e) => setVisitorForm({ ...visitorForm, date_of_application: e.target.value })}
                   required
                 />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0' }}>
+                  <label style={{ margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!visitorForm.has_contact_number}
+                      onChange={(e) => setVisitorForm({ ...visitorForm, has_contact_number: e.target.checked })}
+                      style={{ marginRight: '6px' }}
+                    />
+                    Visitor has contact number
+                  </label>
+                </div>
                 <label>Contact Number:</label>
                 <input
                   type="text"
                   placeholder=""
                   value={visitorForm.contact_number}
                   onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: normalizeContactNumber(e.target.value) })}
-                  pattern="09\\d{9}"
                   inputMode="numeric"
                   maxLength={11}
                   title="Contact number must be 11 digits and start with 09"
-                  required
+                  disabled={!visitorForm.has_contact_number}
+                  required={!!visitorForm.has_contact_number}
                 />
                 <div className="common-modal-buttons">
                   <button type="submit">Submit</button>
@@ -555,17 +584,28 @@ const VisitorPage = () => {
                   onChange={(e) => setVisitorForm({ ...visitorForm, date_of_application: e.target.value })}
                   required
                 />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0' }}>
+                  <label style={{ margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!visitorForm.has_contact_number}
+                      onChange={(e) => setVisitorForm({ ...visitorForm, has_contact_number: e.target.checked })}
+                      style={{ marginRight: '6px' }}
+                    />
+                    Visitor has contact number
+                  </label>
+                </div>
                 <label>Contact Number:</label>
                 <input
                   type="text"
                   placeholder="Contact Number"
                   value={visitorForm.contact_number}
                   onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: normalizeContactNumber(e.target.value) })}
-                  pattern="09\\d{9}"
                   inputMode="numeric"
                   maxLength={11}
                   title="Contact number must be 11 digits and start with 09"
-                  required
+                  disabled={!visitorForm.has_contact_number}
+                  required={!!visitorForm.has_contact_number}
                 />
                 <div className="common-modal-buttons">
                   <button type="submit">Submit</button>

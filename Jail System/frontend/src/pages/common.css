@@ -52,6 +52,12 @@ body, .common-container {
   cursor: pointer;
 }
 
+/* Clickable sortable headers */
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+
 /* Buttons */
 .common-button {
   font-weight: bold;

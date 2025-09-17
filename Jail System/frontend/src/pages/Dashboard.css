@@ -9,6 +9,9 @@
   .print-section, .print-section * {
     visibility: visible;
   }
+  .no-print {
+    display: none !important;
+  }
   .print-section {
     position: absolute;
     left: 0;

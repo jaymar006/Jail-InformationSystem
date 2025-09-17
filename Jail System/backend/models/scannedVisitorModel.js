@@ -43,14 +43,15 @@ const ScannedVisitor = {
       time_out,
       scan_date,
       relationship,
-      contact_number
+      contact_number,
+      purpose
     } = data;
 
     const [result] = await db.query(
       `INSERT INTO scanned_visitors (
-        visitor_name, pdl_name, dorm, time_in, time_out, scan_date, relationship, contact_number
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [visitor_name, pdl_name, dorm, time_in, time_out, scan_date, relationship, contact_number]
+        visitor_name, pdl_name, dorm, time_in, time_out, scan_date, relationship, contact_number, purpose
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [visitor_name, pdl_name, dorm, time_in, time_out, scan_date, relationship, contact_number, purpose]
     );
     return result;
   },

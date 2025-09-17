@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS visitors (
   valid_id TEXT NOT NULL,
   date_of_application TEXT NOT NULL,
   contact_number TEXT NOT NULL,
+  verified_conjugal INTEGER DEFAULT 0,
   time_in TEXT,
   time_out TEXT,
   created_at TEXT DEFAULT (datetime('now')),
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS scanned_visitors (
   scan_date TEXT NOT NULL,
   relationship TEXT,
   contact_number TEXT,
+  purpose TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -88,6 +90,25 @@ sqliteDb.serialize(() => {
       console.error('❌ Failed to initialize SQLite schema:', err);
     } else {
       console.log('✅ SQLite database initialized at', dbFilePath);
+      // Ensure new columns exist for backward-compatible upgrades
+      const ensureColumn = (table, column, type, defaultClause = '') => {
+        sqliteDb.all(`PRAGMA table_info(${table});`, (e, rows) => {
+          if (e) return console.error(`Failed to read schema for ${table}:`, e);
+          const has = rows && rows.some(r => r.name === column);
+          if (!has) {
+            const sql = `ALTER TABLE ${table} ADD COLUMN ${column} ${type} ${defaultClause}`.trim();
+            sqliteDb.run(sql, (alterErr) => {
+              if (alterErr) console.error(`Failed to add ${table}.${column}:`, alterErr);
+              else console.log(`Added column ${table}.${column}`);
+            });
+          }
+        });
+      };
+
+      // Visitors: verified_conjugal INTEGER DEFAULT 0
+      ensureColumn('visitors', 'verified_conjugal', 'INTEGER', 'DEFAULT 0');
+      // Scanned visitors: purpose TEXT
+      ensureColumn('scanned_visitors', 'purpose', 'TEXT');
     }
   });
 });
