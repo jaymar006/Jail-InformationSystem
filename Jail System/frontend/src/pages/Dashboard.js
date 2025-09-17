@@ -20,6 +20,7 @@ const Dashboard = () => {
   const [lastScanAt, setLastScanAt] = useState(0);
   const [selectedDeleteIds, setSelectedDeleteIds] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [isScannerMinimized, setIsScannerMinimized] = useState(false);
 
   const formatTime = (isoString) => {
     if (!isoString) return '';
@@ -290,11 +291,74 @@ const Dashboard = () => {
       <Header activePage="Dashboard" />
       <main className="dashboard-main">
         <section style={{ textAlign: 'center' }}>
-          <h2>QR Code Scanner</h2>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <QRCodeScanner onScan={handleScan} onError={() => setScanError('QR Scan error')} resetTrigger={resetTrigger} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
+            <h2 style={{ margin: 0 }}>QR Code Scanner</h2>
+            <button
+              onClick={() => setIsScannerMinimized(!isScannerMinimized)}
+              style={{
+                background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title={isScannerMinimized ? 'Show Scanner' : 'Hide Scanner'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {isScannerMinimized ? (
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                ) : (
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                )}
+              </svg>
+              {isScannerMinimized ? 'Show Scanner' : 'Hide Scanner'}
+            </button>
           </div>
-          {scanError && <p className="error-message">{scanError}</p>}
+          
+          {!isScannerMinimized && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <QRCodeScanner onScan={handleScan} onError={() => setScanError('QR Scan error')} resetTrigger={resetTrigger} />
+              </div>
+              {scanError && <p className="error-message">{scanError}</p>}
+            </>
+          )}
+          
+          {isScannerMinimized && (
+            <div style={{ 
+              background: '#f8fafc', 
+              border: '2px dashed #d1d5db', 
+              borderRadius: '8px', 
+              padding: '20px', 
+              margin: '0 auto',
+              maxWidth: '400px',
+              color: '#6b7280'
+            }}>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 12px', display: 'block' }}>
+                <rect x="3" y="3" width="5" height="5"/>
+                <rect x="16" y="3" width="5" height="5"/>
+                <rect x="3" y="16" width="5" height="5"/>
+                <path d="M21 16h-3a2 2 0 0 0-2 2v3"/>
+                <path d="M21 21v.01"/>
+                <path d="M12 7v3a2 2 0 0 1-2 2H7"/>
+                <path d="M3 12h.01"/>
+                <path d="M12 3h.01"/>
+                <path d="M12 16v.01"/>
+                <path d="M16 12h1"/>
+                <path d="M21 12v.01"/>
+                <path d="M12 21v-1"/>
+              </svg>
+              <p style={{ margin: 0, fontSize: '14px', fontWeight: '500' }}>QR Scanner is minimized</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px' }}>Click "Show Scanner" to scan visitor QR codes</p>
+            </div>
+          )}
         </section>
 
         <section>
@@ -328,7 +392,7 @@ const Dashboard = () => {
                   <th>Purpose</th>
                   <th>Time In</th>
                   <th>Time Out</th>
-                  <th className="no-print">Actions</th>
+                  <th className="no-print" style={{ textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -357,13 +421,18 @@ const Dashboard = () => {
                       <td>{v.purpose ? (v.purpose.charAt(0).toUpperCase() + v.purpose.slice(1)) : ''}</td>
                       <td>{formatTime(v.time_in)}</td>
                       <td>{v.time_out ? formatTime(v.time_out) : ''}</td>
-                      <td className="no-print">
-                        <button
-                          className="common-button edit no-print"
-                          onClick={(e) => { e.stopPropagation(); openEditModalForRow(v); }}
-                        >
-                          Edit
-                        </button>
+                      <td className="no-print" style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <button
+                            className="common-button edit no-print"
+                            onClick={(e) => { e.stopPropagation(); openEditModalForRow(v); }}
+                          >
+                            <svg className="button-icon" viewBox="0 0 24 24">
+                              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                            </svg>
+                            Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -374,10 +443,16 @@ const Dashboard = () => {
 
           <div style={{ marginTop: '10px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
             <button className="common-button" onClick={() => window.print()}>
+              <svg className="button-icon" viewBox="0 0 24 24">
+                <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+              </svg>
               Print Table
             </button>
             {selectedDeleteIds.length > 0 && (
               <button className="common-button delete" onClick={handleDelete}>
+                <svg className="button-icon" viewBox="0 0 24 24">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
                 Delete Selected ({selectedDeleteIds.length})
               </button>
             )}
@@ -398,6 +473,9 @@ const Dashboard = () => {
                   onClick={() => handlePurposeSelection('conjugal')}
                   style={{ marginRight: '10px', backgroundColor: '#dc2626', color: 'white' }}
                 >
+                  <svg className="button-icon" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  </svg>
                   Conjugal Visit
                 </button>
                 <button 
@@ -405,6 +483,9 @@ const Dashboard = () => {
                   onClick={() => handlePurposeSelection('normal')}
                   style={{ backgroundColor: '#059669', color: 'white' }}
                 >
+                  <svg className="button-icon" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  </svg>
                   Normal Visit
                 </button>
               </div>
@@ -429,8 +510,16 @@ const Dashboard = () => {
                 </label>
                 <br />
                 <div className="common-modal-buttons">
-                  <button type="submit" className="common-button save">Save</button>
+                  <button type="submit" className="common-button save">
+                    <svg className="button-icon" viewBox="0 0 24 24">
+                      <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                    </svg>
+                    Save
+                  </button>
                   <button type="button" className="common-button cancel" onClick={() => setShowEditModal(false)}>
+                    <svg className="button-icon" viewBox="0 0 24 24">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
                     Cancel
                   </button>
                 </div>

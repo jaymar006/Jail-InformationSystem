@@ -21,6 +21,13 @@ const QRCodeScanner = ({ onScan, resetTrigger }) => {
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
     try {
+      // Check if camera is available before starting
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras || cameras.length === 0) {
+        setError('No camera found. Please connect a camera to use QR scanning.');
+        return;
+      }
+
       await html5QrcodeScannerRef.current.start(
         { facingMode: 'environment' },
         config,
@@ -34,7 +41,25 @@ const QRCodeScanner = ({ onScan, resetTrigger }) => {
       isScannerRunningRef.current = true;
       setError(null);
     } catch (err) {
-      setError(err.message || 'Error starting QR code scanner');
+      // Provide more user-friendly error messages
+      let errorMessage = 'Error starting QR code scanner';
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage = 'Camera access denied. Please allow camera permissions.';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage = 'No camera found. Please connect a camera.';
+      } else if (err.name === 'NotReadableError') {
+        errorMessage = 'Camera is already in use by another application.';
+      } else if (err.name === 'OverconstrainedError') {
+        errorMessage = 'Camera constraints cannot be satisfied.';
+      } else if (err.name === 'SecurityError') {
+        errorMessage = 'Camera access blocked due to security restrictions.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      isScannerRunningRef.current = false;
     }
   }, [onScan]);
 
@@ -44,14 +69,31 @@ const QRCodeScanner = ({ onScan, resetTrigger }) => {
       typeof html5QrcodeScannerRef.current.stop === 'function'
     ) {
       try {
-        await html5QrcodeScannerRef.current.stop();
+        // Check if scanner is actually running before trying to stop it
+        let isRunning = false;
+        
+        if (html5QrcodeScannerRef.current.getState && Html5Qrcode.STATE) {
+          isRunning = html5QrcodeScannerRef.current.getState() === Html5Qrcode.STATE.STARTED;
+        } else {
+          // Fallback: use our internal state tracking
+          isRunning = isScannerRunningRef.current;
+        }
+        
+        if (isRunning) {
+          await html5QrcodeScannerRef.current.stop();
+        }
         isScannerRunningRef.current = false;
 
         // Clear the scanner region DOM
         const element = document.getElementById(qrCodeRegionId);
         if (element) element.innerHTML = '';
       } catch (err) {
-        console.error('Failed to stop scanner:', err);
+        // Only log error if it's not the common "scanner not running" error
+        if (!err.message || !err.message.includes('Cannot stop, scanner is not running')) {
+          console.error('Failed to stop scanner:', err);
+        }
+        // Always reset the running state even if stop fails
+        isScannerRunningRef.current = false;
       }
     }
   }, []);

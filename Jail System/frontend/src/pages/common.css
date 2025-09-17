@@ -24,38 +24,125 @@ body, .common-container {
 
 /* Table styles */
 .common-table {
-  width: auto;
-  border-collapse: collapse;
-  margin: 10px auto 10px auto;
+  width: 100%;
+  max-width: 1400px;
+  border-collapse: separate;
+  border-spacing: 0;
   background-color: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
   table-layout: auto;
   word-wrap: break-word;
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .common-table th, .common-table td {
-  border: 1px solid #ccc;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   padding: 10px 12px;
-  text-align: left;
-  font-size: 14px;
+  text-align: center;
+  font-size: 12px;
   vertical-align: middle;
+  transition: all 0.2s ease;
 }
 
 .common-table thead {
-  background-color: #1e1e2f; 
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
   color: white;
   font-weight: 600;
+  position: relative;
+}
+
+.common-table thead th {
+  padding: 12px 14px;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+  border-bottom: none;
+  position: relative;
+}
+
+.common-table thead th:first-child {
+  border-top-left-radius: 10px;
+}
+
+.common-table thead th:last-child {
+  border-top-right-radius: 10px;
+}
+
+.common-table tbody tr {
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .common-table tbody tr:hover {
-  background-color: #e0e7ff; 
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   cursor: pointer;
+}
+
+.common-table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 10px;
+}
+
+.common-table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 10px;
+}
+
+.common-table tbody tr:last-child {
+  border-bottom: none;
 }
 
 /* Clickable sortable headers */
 .sortable-th {
   cursor: pointer;
   user-select: none;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.sortable-th:hover {
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  transform: translateY(-1px);
+}
+
+/* Enhanced checkbox styling */
+.common-table input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #d1d5db;
+  border-radius: 3px;
+  background-color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.common-table input[type="checkbox"]:hover {
+  border-color: #4b5563;
+  transform: scale(1.1);
+}
+
+.common-table input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  border-color: #4b5563;
+  transform: scale(1.1);
+}
+
+.common-table input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
 }
 
 /* Buttons */
@@ -68,6 +155,10 @@ body, .common-container {
   transition: background-color 0.2s ease-in-out;
   color: white;
   background-color: #2563eb;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
 }
 
 .common-button:hover {
@@ -191,9 +282,14 @@ body, .common-container {
 }
 
 .no-data {
-  color: #666;
+  color: #6b7280;
   font-style: italic;
-  padding: 10px;
+  padding: 40px 20px;
+  text-align: center;
+  font-size: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  margin: 20px 0;
 }
 
 .action-buttons {
@@ -204,9 +300,127 @@ body, .common-container {
 
 .action-buttons-row {
   display: flex;
-  gap: 10px;
+  gap: 4px;
   justify-content: flex-start;
   align-items: center;
+}
+
+/* Compact action buttons with text */
+.action-buttons-row .common-button {
+  padding: 6px 10px;
+  min-width: auto;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  gap: 4px;
+}
+
+.action-buttons-row .common-button .button-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* Icon styles for buttons */
+.button-icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+/* Enhanced table wrapper for better spacing */
+.visitor-table-wrapper {
+  background: #fff;
+  border-radius: 16px;
+  padding: 0;
+  margin: 16px auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+/* Search and filter styling */
+.search-filter-container {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-filter-container input[type="text"] {
+  padding: 8px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  background: #fff;
+  min-width: 160px;
+}
+
+.search-filter-container input[type="text"]:focus {
+  outline: none;
+  border-color: #4b5563;
+  box-shadow: 0 0 0 3px rgba(75, 85, 99, 0.1);
+}
+
+.search-filter-container select {
+  padding: 8px 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.search-filter-container select:focus {
+  outline: none;
+  border-color: #4b5563;
+  box-shadow: 0 0 0 3px rgba(75, 85, 99, 0.1);
+}
+
+/* Enhanced pagination styling */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin: 24px 0;
+  padding: 16px;
+}
+
+.pagination-button {
+  padding: 8px 12px;
+  border: 2px solid #e5e7eb;
+  background: #fff;
+  color: #4b5563;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  min-width: 40px;
+  text-align: center;
+}
+
+.pagination-button:hover {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-color: #4b5563;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-button.active {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  border-color: #4b5563;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(75, 85, 99, 0.3);
 }
 
 /* Form grid utilities for better UX in modals */

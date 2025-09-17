@@ -369,7 +369,12 @@ const VisitorPage = () => {
         {pdlFetchError && <p style={{ color: 'red' }}>{pdlFetchError}</p>}
         {fetchError && <p style={{ color: 'red' }}>{fetchError}</p>}
 
-        <button className="common-button add" onClick={() => setShowAddModal(true)}>Add Visitor</button>
+        <button className="common-button add" onClick={() => setShowAddModal(true)}>
+          <svg className="button-icon" viewBox="0 0 24 24">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          Add Visitor
+        </button>
 
         <div className="visitor-table-wrapper">
           <table className="common-table">
@@ -411,8 +416,20 @@ const VisitorPage = () => {
                     <td>{formatDateForTable(visitor.date_of_application)}</td>
                     <td>{visitor.contact_number}</td>
                     <td>
-                      <button className="common-button edit" onClick={() => openEditModal(visitor)}>Edit</button>
-                      <button className="common-button delete" onClick={() => handleDeleteVisitor(visitor.id)} style={{ marginLeft: '5px' }}>Delete</button>
+                      <div className="action-buttons-row">
+                        <button className="common-button edit" onClick={() => openEditModal(visitor)}>
+                          <svg className="button-icon" viewBox="0 0 24 24">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                          </svg>
+                          Edit
+                        </button>
+                        <button className="common-button delete" onClick={() => handleDeleteVisitor(visitor.id)}>
+                          <svg className="button-icon" viewBox="0 0 24 24">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                          </svg>
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -422,107 +439,302 @@ const VisitorPage = () => {
         </div>
 
         {!isSelecting && !showIdPreview && (
-          <button className="common-button" style={{ marginTop: '10px' }} onClick={handleCreateIdClick}>Create ID</button>
+          <button className="common-button" style={{ marginTop: '10px' }} onClick={handleCreateIdClick}>
+            <svg className="button-icon" viewBox="0 0 24 24">
+              <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+            </svg>
+            Create ID
+          </button>
         )}
 
         {isSelecting && (
           <div style={{ marginTop: '10px' }}>
-            <button className="common-button" onClick={handleConfirmSelection}>Confirm</button>{' '}
-            <button className="common-button" onClick={handleCancelSelection}>Cancel</button>
+            <button className="common-button" onClick={handleConfirmSelection}>
+              <svg className="button-icon" viewBox="0 0 24 24">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              </svg>
+              Confirm
+            </button>{' '}
+            <button className="common-button" onClick={handleCancelSelection}>
+              <svg className="button-icon" viewBox="0 0 24 24">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+              Cancel
+            </button>
           </div>
         )}
 
         {showAddModal && (
           <div className="common-modal">
-            <div className="common-modal-content">
-              <h3>Add Visitor</h3>
+            <div className="common-modal-content wide" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+              <h3 style={{ textAlign: 'center', marginBottom: '24px', fontSize: '24px', fontWeight: '600', color: '#111827' }}>Add Visitor</h3>
               <form onSubmit={handleAddVisitor}>
-                <label>Name:</label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={visitorForm.name}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, name: e.target.value })}
-                  required
-                />
-                <label>Relationship:</label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={visitorForm.relationship}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, relationship: normalizeRelationship(e.target.value) })}
-                  required
-                />
-                <div style={{ margin: '4px 0 10px 0' }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <input
-                      type="checkbox"
-                      checked={visitorForm.verified_conjugal}
-                      onChange={(e) => setVisitorForm({ ...visitorForm, verified_conjugal: e.target.checked })}
-                    />
-                    Verified for conjugal visit
-                  </label>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '20px',
+                  marginBottom: '24px'
+                }}>
+                  {/* Personal Information Section */}
+                  <div style={{ 
+                    background: '#f8fafc', 
+                    padding: '20px', 
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <h4 style={{ 
+                      margin: '0 0 20px 0', 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '2px solid #4b5563',
+                      paddingBottom: '8px'
+                    }}>
+                      Personal Information
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Name *</label>
+                        <input
+                          type="text"
+                          placeholder="Enter visitor name"
+                          value={visitorForm.name}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, name: e.target.value })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Relationship *</label>
+                        <input
+                          type="text"
+                          placeholder="Enter relationship to PDL"
+                          value={visitorForm.relationship}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, relationship: normalizeRelationship(e.target.value) })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Age *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="150"
+                          placeholder="Enter age"
+                          value={visitorForm.age}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, age: clampAge(e.target.value) })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Address *</label>
+                        <input
+                          type="text"
+                          placeholder="Enter address"
+                          value={visitorForm.address}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, address: e.target.value })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documentation & Contact Section */}
+                  <div style={{ 
+                    background: '#f8fafc', 
+                    padding: '20px', 
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <h4 style={{ 
+                      margin: '0 0 20px 0', 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '2px solid #4b5563',
+                      paddingBottom: '8px'
+                    }}>
+                      Documentation & Contact
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Valid ID *</label>
+                        <input
+                          type="text"
+                          placeholder="Enter valid ID number"
+                          value={visitorForm.valid_id}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, valid_id: e.target.value })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Date of Application *</label>
+                        <input
+                          type="date"
+                          value={visitorForm.date_of_application}
+                          max={getTodayDate()}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, date_of_application: e.target.value })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            background: '#fff',
+                            cursor: 'pointer',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Contact Number</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0, fontSize: '14px' }}>
+                            <input
+                              type="checkbox"
+                              checked={!!visitorForm.has_contact_number}
+                              onChange={(e) => setVisitorForm({ ...visitorForm, has_contact_number: e.target.checked })}
+                              style={{ margin: 0 }}
+                            />
+                            Visitor has contact number
+                          </label>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Enter contact number (09xxxxxxxxx)"
+                          value={visitorForm.contact_number}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: normalizeContactNumber(e.target.value) })}
+                          inputMode="numeric"
+                          maxLength={11}
+                          title="Contact number must be 11 digits and start with 09"
+                          disabled={!visitorForm.has_contact_number}
+                          required={!!visitorForm.has_contact_number}
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease',
+                            opacity: visitorForm.has_contact_number ? 1 : 0.5
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <label>Age:</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="150"
-                  placeholder=""
-                  value={visitorForm.age}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, age: clampAge(e.target.value) })}
-                  required
-                />
-                <label>Address:</label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={visitorForm.address}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, address: e.target.value })}
-                  required
-                />
-                <label>Valid ID:</label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={visitorForm.valid_id}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, valid_id: e.target.value })}
-                  required
-                />
-                <label>Date of Application:</label>
-                <input
-                  type="date"
-                  value={visitorForm.date_of_application}
-                  max={getTodayDate()}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, date_of_application: e.target.value })}
-                  required
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0' }}>
-                  <label style={{ margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={!!visitorForm.has_contact_number}
-                      onChange={(e) => setVisitorForm({ ...visitorForm, has_contact_number: e.target.checked })}
-                      style={{ marginRight: '6px' }}
-                    />
-                    Visitor has contact number
-                  </label>
+
+                {/* Visit Type Section */}
+                <div style={{ 
+                  background: '#f8fafc', 
+                  padding: '20px', 
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: '24px'
+                }}>
+                  <h4 style={{ 
+                    margin: '0 0 20px 0', 
+                    fontSize: '16px', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    borderBottom: '2px solid #4b5563',
+                    paddingBottom: '8px'
+                  }}>
+                    Visit Type
+                  </h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      <input
+                        type="checkbox"
+                        checked={visitorForm.verified_conjugal}
+                        onChange={(e) => setVisitorForm({ ...visitorForm, verified_conjugal: e.target.checked })}
+                        style={{ margin: 0, width: '16px', height: '16px' }}
+                      />
+                      Verified for conjugal visit
+                    </label>
+                  </div>
                 </div>
-                <label>Contact Number:</label>
-                <input
-                  type="text"
-                  placeholder=""
-                  value={visitorForm.contact_number}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: normalizeContactNumber(e.target.value) })}
-                  inputMode="numeric"
-                  maxLength={11}
-                  title="Contact number must be 11 digits and start with 09"
-                  disabled={!visitorForm.has_contact_number}
-                  required={!!visitorForm.has_contact_number}
-                />
-                <div className="common-modal-buttons">
-                  <button type="submit">Submit</button>
-                  <button type="button" onClick={() => setShowAddModal(false)}>Cancel</button>
+
+                <div className="common-modal-buttons" style={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  gap: '12px',
+                  marginTop: '24px',
+                  paddingBottom: '20px'
+                }}>
+                  <button 
+                    type="submit"
+                    style={{
+                      background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                      color: 'white',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Submit
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowAddModal(false)}
+                    style={{
+                      background: '#e5e7eb',
+                      color: '#374151',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </form>
             </div>
@@ -531,85 +743,275 @@ const VisitorPage = () => {
 
         {showEditModal && (
           <div className="common-modal">
-            <div className="common-modal-content">
-              <h3>Edit Visitor</h3>
+            <div className="common-modal-content wide" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+              <h3 style={{ textAlign: 'center', marginBottom: '24px', fontSize: '24px', fontWeight: '600', color: '#111827' }}>Edit Visitor</h3>
               <form onSubmit={handleEditVisitor}>
-                <label>Name:</label>
-                <input
-                  type="text"
-                  placeholder="Name"
-                  value={visitorForm.name}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, name: e.target.value })}
-                  required
-                />
-                <label>Relationship:</label>
-                <input
-                  type="text"
-                  placeholder="Relationship"
-                  value={visitorForm.relationship}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, relationship: normalizeRelationship(e.target.value) })}
-                  required
-                />
-                <label>Age:</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="150"
-                  placeholder="Age"
-                  value={visitorForm.age}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, age: clampAge(e.target.value) })}
-                  required
-                />
-                <label>Address:</label>
-                <input
-                  type="text"
-                  placeholder="Address"
-                  value={visitorForm.address}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, address: e.target.value })}
-                  required
-                />
-                <label>Valid ID:</label>
-                <input
-                  type="text"
-                  placeholder="Valid ID"
-                  value={visitorForm.valid_id}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, valid_id: e.target.value })}
-                  required
-                />
-                <label>Date of Application:</label>
-                <input
-                  type="date"
-                  value={visitorForm.date_of_application}
-                  max={getTodayDate()}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, date_of_application: e.target.value })}
-                  required
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0' }}>
-                  <label style={{ margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={!!visitorForm.has_contact_number}
-                      onChange={(e) => setVisitorForm({ ...visitorForm, has_contact_number: e.target.checked })}
-                      style={{ marginRight: '6px' }}
-                    />
-                    Visitor has contact number
-                  </label>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '20px',
+                  marginBottom: '24px'
+                }}>
+                  {/* Personal Information Section */}
+                  <div style={{ 
+                    background: '#f8fafc', 
+                    padding: '20px', 
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <h4 style={{ 
+                      margin: '0 0 20px 0', 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '2px solid #4b5563',
+                      paddingBottom: '8px'
+                    }}>
+                      Personal Information
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Name *</label>
+                        <input
+                          type="text"
+                          placeholder="Enter visitor name"
+                          value={visitorForm.name}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, name: e.target.value })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Relationship *</label>
+                        <input
+                          type="text"
+                          placeholder="Enter relationship to PDL"
+                          value={visitorForm.relationship}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, relationship: normalizeRelationship(e.target.value) })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Age *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="150"
+                          placeholder="Enter age"
+                          value={visitorForm.age}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, age: clampAge(e.target.value) })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Address *</label>
+                        <input
+                          type="text"
+                          placeholder="Enter address"
+                          value={visitorForm.address}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, address: e.target.value })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documentation & Contact Section */}
+                  <div style={{ 
+                    background: '#f8fafc', 
+                    padding: '20px', 
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <h4 style={{ 
+                      margin: '0 0 20px 0', 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '2px solid #4b5563',
+                      paddingBottom: '8px'
+                    }}>
+                      Documentation & Contact
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Valid ID *</label>
+                        <input
+                          type="text"
+                          placeholder="Enter valid ID number"
+                          value={visitorForm.valid_id}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, valid_id: e.target.value })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Date of Application *</label>
+                        <input
+                          type="date"
+                          value={visitorForm.date_of_application}
+                          max={getTodayDate()}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, date_of_application: e.target.value })}
+                          required
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            background: '#fff',
+                            cursor: 'pointer',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Contact Number</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: 0, fontSize: '14px' }}>
+                            <input
+                              type="checkbox"
+                              checked={!!visitorForm.has_contact_number}
+                              onChange={(e) => setVisitorForm({ ...visitorForm, has_contact_number: e.target.checked })}
+                              style={{ margin: 0 }}
+                            />
+                            Visitor has contact number
+                          </label>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Enter contact number (09xxxxxxxxx)"
+                          value={visitorForm.contact_number}
+                          onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: normalizeContactNumber(e.target.value) })}
+                          inputMode="numeric"
+                          maxLength={11}
+                          title="Contact number must be 11 digits and start with 09"
+                          disabled={!visitorForm.has_contact_number}
+                          required={!!visitorForm.has_contact_number}
+                          style={{
+                            width: '90%',
+                            padding: '10px 12px',
+                            border: '2px solid #e5e7eb',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            transition: 'border-color 0.2s ease',
+                            opacity: visitorForm.has_contact_number ? 1 : 0.5
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <label>Contact Number:</label>
-                <input
-                  type="text"
-                  placeholder="Contact Number"
-                  value={visitorForm.contact_number}
-                  onChange={(e) => setVisitorForm({ ...visitorForm, contact_number: normalizeContactNumber(e.target.value) })}
-                  inputMode="numeric"
-                  maxLength={11}
-                  title="Contact number must be 11 digits and start with 09"
-                  disabled={!visitorForm.has_contact_number}
-                  required={!!visitorForm.has_contact_number}
-                />
-                <div className="common-modal-buttons">
-                  <button type="submit">Submit</button>
-                  <button type="button" onClick={() => setShowEditModal(false)}>Cancel</button>
+
+                {/* Visit Type Section */}
+                <div style={{ 
+                  background: '#f8fafc', 
+                  padding: '20px', 
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  marginBottom: '24px'
+                }}>
+                  <h4 style={{ 
+                    margin: '0 0 20px 0', 
+                    fontSize: '16px', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    borderBottom: '2px solid #4b5563',
+                    paddingBottom: '8px'
+                  }}>
+                    Visit Type
+                  </h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+                      <input
+                        type="checkbox"
+                        checked={visitorForm.verified_conjugal}
+                        onChange={(e) => setVisitorForm({ ...visitorForm, verified_conjugal: e.target.checked })}
+                        style={{ margin: 0, width: '16px', height: '16px' }}
+                      />
+                      Verified for conjugal visit
+                    </label>
+                  </div>
+                </div>
+
+                <div className="common-modal-buttons" style={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  gap: '12px',
+                  marginTop: '24px',
+                  paddingBottom: '20px'
+                }}>
+                  <button 
+                    type="submit"
+                    style={{
+                      background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                      color: 'white',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Submit
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowEditModal(false)}
+                    style={{
+                      background: '#e5e7eb',
+                      color: '#374151',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </form>
             </div>
@@ -622,14 +1024,14 @@ const VisitorPage = () => {
             <div style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '15px', boxShadow: '0 0 10px rgba(0,0,0,0.1)', backgroundColor: 'white' }}>
               <div id="id-preview-container" ref={idPreviewRef} style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                 {selectedVisitors.map(visitor => (
-                  <div key={visitor.id} className="id-card" style={{ width: 408 * 1.3 + 'px', height: 324 * 1.3 + 'px', position: 'relative', backgroundColor: 'transparent', display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <div key={visitor.id} className="id-card" style={{ width: 408 * 1.5 + 'px', height: 324 * 1.5 + 'px', position: 'relative', backgroundColor: 'transparent', display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
                     {/* Background image layer covering entire card */}
                     <div className="id-card-background" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', padding: 0, overflow: 'hidden', width: '100%', height: '100%' }}>
                       <img src={ID_Background} alt="ID Background Left" className="left" style={{ width: '50%', height: '100%', objectFit: 'cover', flexShrink: 0, borderRadius: '8px 0 0 8px' }} />
                       <img src={ID_Background} alt="ID Background Right" className="right" style={{ width: '50%', height: '100%', objectFit: 'cover', flexShrink: 0, borderRadius: '0 8px 8px 0' }} />
                     </div>
                     {/* Left side - Visitor info */}
-                    <div style={{ width: 204 * 1.3 + 'px', height: 324 * 1.3 + 'px', position: 'relative', backgroundColor: 'transparent', flexDirection: 'column', justifyContent: 'space-between', display: 'flex', zIndex: 1 }}>
+                    <div style={{ width: 204 * 1.5 + 'px', height: 324 * 1.5 + 'px', position: 'relative', backgroundColor: 'transparent', flexDirection: 'column', justifyContent: 'space-between', display: 'flex', zIndex: 1 }}>
                       <div className="id-card-side left" style={{ position: 'relative', padding: '10px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', width: '100%', flex: 1 }}>
                         <div style={{ fontWeight: 'bold', fontSize: '1.2rem', textAlign: 'center', marginBottom: '5px' }}>Silang Municipal Jail</div>
                         <div className="id-card-logos" style={{ display: 'flex', justifyContent: 'center', padding: 0, gap: '5px', width: '100%' }}>
@@ -638,9 +1040,9 @@ const VisitorPage = () => {
                           <img src="/logo3.png" alt="Logo 3" style={{ margin: 0, width: '66px', height: '66px', objectFit: 'contain' }} />
                         </div>
                         <div className="id-card-title" style={{ fontWeight: 'bold', marginTop: '5px', marginBottom: '10px', fontSize: '1rem', textAlign: 'center' }}>Visitator's Identification Card</div>
-                        <div className="id-card-photo-placeholder" style={{ width: '150px', height: '150px', backgroundColor: '#ccc', margin: '10px auto', display: 'block', flexShrink: 0, textAlign: 'center', lineHeight: '150px', fontWeight: 'bold', color: '#666' }}>
+                        <div className="id-card-photo-placeholder" style={{ width: '180px', height: '180px', backgroundColor: '#ccc', margin: '10px auto', display: 'block', flexShrink: 0, textAlign: 'center', lineHeight: '180px', fontWeight: 'bold', color: '#666' }}>
                           {capturedPhotos[visitor.id] ? (
-                            <img src={capturedPhotos[visitor.id]} alt="Captured" style={{ width: '150px', height: '150px', objectFit: 'cover', borderRadius: '4px' }} />
+                            <img src={capturedPhotos[visitor.id]} alt="Captured" style={{ width: '180px', height: '180px', objectFit: 'cover', borderRadius: '4px' }} />
                           ) : (
                             '2x2 Photo'
                           )}
@@ -662,7 +1064,7 @@ const VisitorPage = () => {
                       </div>
                     </div>
                     {/* Right side - Duplicate design with PDL info */}
-                    <div style={{ width: 204 * 1.3 + 'px', height: 324 * 1.3 + 'px', position: 'relative', backgroundColor: 'transparent', flexDirection: 'column', justifyContent: 'space-between', display: 'flex', borderLeft: '1px solid #ccc', padding: '10px', boxSizing: 'border-box', zIndex: 1 }}>
+                    <div style={{ width: 204 * 1.5 + 'px', height: 324 * 1.5 + 'px', position: 'relative', backgroundColor: 'transparent', flexDirection: 'column', justifyContent: 'space-between', display: 'flex', borderLeft: '1px solid #ccc', padding: '10px', boxSizing: 'border-box', zIndex: 1 }}>
                       <div className="id-card-title" style={{ fontWeight: 'bold', marginTop: '5px', marginBottom: '10px', fontSize: '1rem', textAlign: 'center' }}>PDL to be Visit</div>
                       <div className="id-card-info" style={{ fontSize: '0.9rem', marginTop: '5px', textAlign: 'center' }}>
                         <div><strong>Name:</strong> {pdl ? `${pdl.first_name} ${pdl.last_name}` : ''}</div>
@@ -671,7 +1073,7 @@ const VisitorPage = () => {
                       <div className="id-card-qr" style={{ backgroundColor: 'transparent', padding: '5px', objectFit: 'fill', position: 'relative', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <QRCodeCanvas
                           value={`[visitor_id:${visitor.id}][Visitor: ${visitor.name}][Relationship: ${visitor.relationship}][Contact: ${visitor.contact_number}][PDL: ${pdl ? `${pdl.first_name} ${pdl.last_name}` : ''}][Dorm: ${pdl ? pdl.dorm_number : ''}]`}
-                          size={166}
+                          size={200}
                         />
                       </div>
                       <div className="id-card-contact" style={{ fontSize: '0.9rem', marginTop: '10px', textAlign: 'center' }}>

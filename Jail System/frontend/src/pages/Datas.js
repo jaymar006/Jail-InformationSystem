@@ -191,6 +191,14 @@ const Datas = () => {
   // New: track column and direction for header sorting
   const [sortColumn, setSortColumn] = useState(null); // e.g., 'last_name'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc' | 'desc'
+  
+  // New state for checkbox selection
+  const [selectedPdlIds, setSelectedPdlIds] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+
+  // Filter states for Show Only functionality
+  const [filterType, setFilterType] = useState('all'); // 'all', 'year', 'month', 'day'
+  const [filterValue, setFilterValue] = useState('');
 
   const fileInputRef = useRef(null);
   const fileInputVisitorsRef = useRef(null);
@@ -352,6 +360,111 @@ const Datas = () => {
       setSortColumn(columnKey);
       setSortDirection('asc');
     }
+  };
+
+  // Handle individual checkbox change
+  const handlePdlCheckboxChange = (pdlId) => {
+    setSelectedPdlIds((prevSelected) => {
+      if (prevSelected.includes(pdlId)) {
+        return prevSelected.filter(id => id !== pdlId);
+      } else {
+        return [...prevSelected, pdlId];
+      }
+    });
+  };
+
+  // Handle select all checkbox change
+  const handleSelectAllChange = () => {
+    if (selectAll) {
+      setSelectedPdlIds([]);
+      setSelectAll(false);
+    } else {
+      setSelectedPdlIds(currentPdls.map(pdl => pdl.id));
+      setSelectAll(true);
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedPdlIds.length === 0) {
+      alert('Please select at least one PDL to delete.');
+      return;
+    }
+
+    const confirmMessage = `Are you sure you want to delete ${selectedPdlIds.length} PDL(s)? This action cannot be undone.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      // Delete each selected PDL
+      const deletePromises = selectedPdlIds.map(id => axios.delete(`/pdls/${id}`));
+      await Promise.all(deletePromises);
+      
+      alert(`${selectedPdlIds.length} PDL(s) successfully deleted.`);
+      setSelectedPdlIds([]);
+      setSelectAll(false);
+      await fetchPdls();
+    } catch (err) {
+      console.error('Failed to delete PDLs:', err);
+      alert('Failed to delete some PDLs. Please try again.');
+    }
+  };
+
+  // Helper functions for Show Only filter
+  const getUniqueYears = () => {
+    const years = new Set();
+    pdls.forEach(pdl => {
+      if (pdl.arrest_date) {
+        const year = new Date(pdl.arrest_date).getFullYear();
+        years.add(year);
+      }
+      if (pdl.commitment_date) {
+        const year = new Date(pdl.commitment_date).getFullYear();
+        years.add(year);
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a); // Sort descending (newest first)
+  };
+
+  const getUniqueMonths = (year) => {
+    const months = new Set();
+    pdls.forEach(pdl => {
+      if (pdl.arrest_date) {
+        const date = new Date(pdl.arrest_date);
+        if (date.getFullYear() === year) {
+          const month = date.getMonth() + 1; // getMonth() returns 0-11
+          months.add(month);
+        }
+      }
+      if (pdl.commitment_date) {
+        const date = new Date(pdl.commitment_date);
+        if (date.getFullYear() === year) {
+          const month = date.getMonth() + 1; // getMonth() returns 0-11
+          months.add(month);
+        }
+      }
+    });
+    return Array.from(months).sort((a, b) => b - a); // Sort descending (newest first)
+  };
+
+  const getUniqueDays = (year, month) => {
+    const days = new Set();
+    pdls.forEach(pdl => {
+      if (pdl.arrest_date) {
+        const date = new Date(pdl.arrest_date);
+        if (date.getFullYear() === year && (date.getMonth() + 1) === month) {
+          const day = date.getDate();
+          days.add(day);
+        }
+      }
+      if (pdl.commitment_date) {
+        const date = new Date(pdl.commitment_date);
+        if (date.getFullYear() === year && (date.getMonth() + 1) === month) {
+          const day = date.getDate();
+          days.add(day);
+        }
+      }
+    });
+    return Array.from(days).sort((a, b) => b - a); // Sort descending (newest first)
   };
 
   // Download template for PDL-only import
@@ -594,18 +707,62 @@ const Datas = () => {
     }
   };
 
-  const filteredSortedPdls = pdls
-    .filter((pdl) => {
-      const term = searchTerm.toLowerCase();
-      return (
-        pdl.last_name.toLowerCase().includes(term) ||
-        pdl.first_name.toLowerCase().includes(term) ||
-        (pdl.middle_name && pdl.middle_name.toLowerCase().includes(term)) ||
-        (pdl.criminal_case_no && pdl.criminal_case_no.toLowerCase().includes(term)) ||
-        (pdl.offense_charge && pdl.offense_charge.toLowerCase().includes(term)) ||
-        (pdl.court_branch && pdl.court_branch.toLowerCase().includes(term))
-      );
-    })
+  // Filter PDLs based on search term and date filters
+  const filterPdls = (pdls) => {
+    let filtered = pdls;
+
+    // Apply date filter
+    if (filterType !== 'all' && filterValue) {
+      filtered = filtered.filter(pdl => {
+        const arrestDate = pdl.arrest_date ? new Date(pdl.arrest_date) : null;
+        const commitmentDate = pdl.commitment_date ? new Date(pdl.commitment_date) : null;
+        
+        switch (filterType) {
+          case 'year':
+            const year = parseInt(filterValue);
+            return (arrestDate && arrestDate.getFullYear() === year) || 
+                   (commitmentDate && commitmentDate.getFullYear() === year);
+          case 'month':
+            const [yearMonth, month] = filterValue.split('-');
+            const yearNum = parseInt(yearMonth);
+            const monthNum = parseInt(month);
+            return (arrestDate && arrestDate.getFullYear() === yearNum && (arrestDate.getMonth() + 1) === monthNum) ||
+                   (commitmentDate && commitmentDate.getFullYear() === yearNum && (commitmentDate.getMonth() + 1) === monthNum);
+          case 'day':
+            const [yearDay, monthDay, day] = filterValue.split('-');
+            const yearDayNum = parseInt(yearDay);
+            const monthDayNum = parseInt(monthDay);
+            const dayNum = parseInt(day);
+            return (arrestDate && arrestDate.getFullYear() === yearDayNum && 
+                   (arrestDate.getMonth() + 1) === monthDayNum && arrestDate.getDate() === dayNum) ||
+                   (commitmentDate && commitmentDate.getFullYear() === yearDayNum && 
+                   (commitmentDate.getMonth() + 1) === monthDayNum && commitmentDate.getDate() === dayNum);
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(pdl => {
+        return (
+          pdl.last_name.toLowerCase().includes(searchLower) ||
+          pdl.first_name.toLowerCase().includes(searchLower) ||
+          (pdl.middle_name && pdl.middle_name.toLowerCase().includes(searchLower)) ||
+          (pdl.criminal_case_no && pdl.criminal_case_no.toLowerCase().includes(searchLower)) ||
+          (pdl.offense_charge && pdl.offense_charge.toLowerCase().includes(searchLower)) ||
+          (pdl.court_branch && pdl.court_branch.toLowerCase().includes(searchLower)) ||
+          (pdl.dorm_number && pdl.dorm_number.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    return filtered;
+  };
+
+  const filteredSortedPdls = filterPdls(pdls)
     .sort((a, b) => {
       // Preserve existing explicit sort options if set
       const dormA = parseInt(a.dorm_number, 10) || 0;
@@ -633,6 +790,15 @@ const Datas = () => {
   const totalPages = Math.ceil(filteredSortedPdls.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentPdls = filteredSortedPdls.slice(startIndex, startIndex + itemsPerPage);
+
+  // Update selectAll state when individual checkboxes change
+  useEffect(() => {
+    if (currentPdls.length === 0) {
+      setSelectAll(false);
+    } else {
+      setSelectAll(selectedPdlIds.length === currentPdls.length);
+    }
+  }, [selectedPdlIds, currentPdls]);
 
   const exportToExcel = () => {
     const dataToExport = filteredSortedPdls.map(pdl => ({
@@ -761,49 +927,266 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
       <Header activePage="Datas" />
 
       <main>
-        <h2>PDL Visitors Management</h2>
-        <div className="action-buttons">
-          <button className="common-button add" type="button" onClick={() => setShowAddModal(true)}>Add a PDL</button>
-          <button className="common-button export" type="button" onClick={exportToExcel}>Export PDL</button>
-          <button className="common-button export" type="button" onClick={exportVisitorsToExcelLinkHandler}>Export PDL with Visitors</button>
-          <button className="common-button" type="button" onClick={() => fileInputRef.current && fileInputRef.current.click()}>Import PDLs</button>
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportFileChange} />
-          <button className="common-button" type="button" onClick={() => fileInputVisitorsRef.current && fileInputVisitorsRef.current.click()}>Import PDL with Visitors</button>
-          <input ref={fileInputVisitorsRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportPdlsWithVisitorsFileChange} />
-        </div>
-
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '12px' }}>
-          <span role="button" tabIndex={0} onClick={downloadPdlTemplateLinkHandler} onKeyDown={(e) => e.key === 'Enter' && downloadPdlTemplateLinkHandler()} style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}>Download PDL Template</span>
-          <span role="button" tabIndex={0} onClick={downloadPdlWithVisitorsTemplateLinkHandler} onKeyDown={(e) => e.key === 'Enter' && downloadPdlWithVisitorsTemplateLinkHandler()} style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}>Download PDL with Visitors Template</span>
-        </div>
-
-        <h3>PDL Lists</h3>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px', alignItems: 'center', gap: '10px' }}>
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ padding: '5px', fontSize: '14px', width: '200px' }}
-          />
-          <select
-            value={sortOption}
-            onChange={(e) => setSortOption(e.target.value)}
-            style={{ padding: '5px', fontSize: '14px' }}
-            aria-label="Sort Options"
-          >
-            <option value="none">No Sort</option>
-            <option value="dorm">Sort by Dorm</option>
-            <option value="alphabetical">Sort Alphabetically with Dorm</option>
-            <option value="alphabeticalWithDorm">Sort Alphabetically</option>
-          </select>
-          <div>
-            Number of data in PDL: {pdls.length}
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <h2 style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            gap: '12px',
+            margin: '0 0 16px 0',
+            fontSize: '28px',
+            fontWeight: '700',
+            color: '#111827'
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+              <path d="M12 11h4"/>
+              <path d="M12 16h4"/>
+              <path d="M8 11h.01"/>
+              <path d="M8 16h.01"/>
+            </svg>
+            PDL Visitors Management
+          </h2>
+          
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <button className="common-button add" type="button" onClick={() => setShowAddModal(true)}>
+              <svg className="button-icon" viewBox="0 0 24 24">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+              Add a PDL
+            </button>
+            {selectedPdlIds.length > 0 && (
+              <button className="common-button delete" type="button" onClick={handleBulkDelete}>
+                <svg className="button-icon" viewBox="0 0 24 24">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+                Delete Selected ({selectedPdlIds.length})
+              </button>
+            )}
+            <button className="common-button export" type="button" onClick={exportToExcel}>
+              <svg className="button-icon" viewBox="0 0 24 24">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+              </svg>
+              Export PDL
+            </button>
+            <button className="common-button export" type="button" onClick={exportVisitorsToExcelLinkHandler}>
+              <svg className="button-icon" viewBox="0 0 24 24">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+              </svg>
+              Export PDL with Visitors
+            </button>
+            <button className="common-button" type="button" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+              <svg className="button-icon" viewBox="0 0 24 24">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+              </svg>
+              Import PDLs
+            </button>
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportFileChange} />
+            <button className="common-button" type="button" onClick={() => fileInputVisitorsRef.current && fileInputVisitorsRef.current.click()}>
+              <svg className="button-icon" viewBox="0 0 24 24">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+              </svg>
+              Import PDL with Visitors
+            </button>
+            <input ref={fileInputVisitorsRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportPdlsWithVisitorsFileChange} />
           </div>
         </div>
+
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', justifyContent: 'center' }}>
+          <span role="button" tabIndex={0} onClick={downloadPdlTemplateLinkHandler} onKeyDown={(e) => e.key === 'Enter' && downloadPdlTemplateLinkHandler()} style={{ color: '#4b5563', textDecoration: 'underline', cursor: 'pointer', fontWeight: '500' }}>Download PDL Template</span>
+          <span role="button" tabIndex={0} onClick={downloadPdlWithVisitorsTemplateLinkHandler} onKeyDown={(e) => e.key === 'Enter' && downloadPdlWithVisitorsTemplateLinkHandler()} style={{ color: '#4b5563', textDecoration: 'underline', cursor: 'pointer', fontWeight: '500' }}>Download PDL with Visitors Template</span>
+        </div>
+
+        <div className="search-filter-container">
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center',
+            gap: '20px',
+            width: '100%'
+          }}>
+            {/* Search Section - Left Column */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifySelf: 'start' }}>
+              <label style={{ fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                Search:
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Search PDLs, names, cases..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onFocus={(e) => {
+                    e.target.style.outline = 'none';
+                    e.target.style.borderColor = '#4b5563';
+                    e.target.style.boxShadow = '0 0 0 3px rgba(75, 85, 99, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = '#e5e7eb';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    transition: 'all 0.2s ease',
+                    background: '#fff',
+                    width: '250px'
+                  }}
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    style={{
+                      padding: '8px',
+                      border: 'none',
+                      background: '#ef4444',
+                      color: 'white',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s ease'
+                    }}
+                    title="Clear search"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* Sort Section - Middle Column */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifySelf: 'center' }}>
+              <label style={{ fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                Sort:
+              </label>
+              <select
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value)}
+                aria-label="Sort Options"
+                style={{
+                  padding: '8px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <option value="none">No Sort</option>
+                <option value="dorm">Sort by Dorm</option>
+                <option value="alphabetical">Sort Alphabetically with Dorm</option>
+                <option value="alphabeticalWithDorm">Sort Alphabetically</option>
+              </select>
+            </div>
+            
+            {/* Show Only Section - Right Column */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifySelf: 'end' }}>
+              <label style={{ fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                Show Only:
+              </label>
+              <select
+                value={filterType}
+                onChange={(e) => {
+                  setFilterType(e.target.value);
+                  setFilterValue('');
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <option value="all">All Records</option>
+                <option value="year">By Year</option>
+                <option value="month">By Month</option>
+                <option value="day">By Day</option>
+              </select>
+              
+              {filterType !== 'all' && (
+                <select
+                  value={filterValue}
+                  onChange={(e) => setFilterValue(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    background: '#fff',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    minWidth: '120px'
+                  }}
+                >
+                  <option value="">Select {filterType}...</option>
+                  {filterType === 'year' && getUniqueYears().map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                  {filterType === 'month' && getUniqueYears().map(year => 
+                    getUniqueMonths(year).map(month => (
+                      <option key={`${year}-${month}`} value={`${year}-${month}`}>
+                        {new Date(year, month - 1).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long' 
+                        })}
+                      </option>
+                    ))
+                  )}
+                  {filterType === 'day' && getUniqueYears().map(year => 
+                    getUniqueMonths(year).map(month => 
+                      getUniqueDays(year, month).map(day => (
+                        <option key={`${year}-${month}-${day}`} value={`${year}-${month}-${day}`}>
+                          {new Date(year, month - 1, day).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </option>
+                      ))
+                    )
+                  )}
+                </select>
+              )}
+              
+              <div style={{ 
+                background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)', 
+                color: 'white', 
+                padding: '8px 12px', 
+                borderRadius: '6px', 
+                fontWeight: '600',
+                fontSize: '12px'
+              }}>
+                Showing: {filteredSortedPdls.length} of {pdls.length} records
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <h3 style={{ textAlign: 'center', margin: '20px 0 16px 0', fontSize: '20px', fontWeight: '600', color: '#111827' }}>PDL Lists</h3>
+        
         <table className="common-table">
           <thead>
             <tr>
+              <th>
+                <input
+                  type="checkbox"
+                  checked={selectAll}
+                  onChange={handleSelectAllChange}
+                  style={{ marginRight: '8px' }}
+                />
+              </th>
               <th className="sortable-th" onClick={() => onHeaderClick('last_name')}>Last Name</th>
               <th className="sortable-th" onClick={() => onHeaderClick('first_name')}>First Name</th>
               <th className="sortable-th" onClick={() => onHeaderClick('middle_name')}>Middle Name</th>
@@ -820,7 +1203,15 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
           <tbody>
             {currentPdls.map((pdl) => (
               <tr key={pdl.id}>
-                <td onClick={() => handlePdlClick(pdl)}>{pdl.last_name}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selectedPdlIds.includes(pdl.id)}
+                    onChange={() => handlePdlCheckboxChange(pdl.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </td>
+                <td onClick={() => handlePdlClick(pdl)} style={{ cursor: 'pointer' }}>{pdl.last_name}</td>
                 <td>{pdl.first_name}</td>
                 <td>{pdl.middle_name}</td>
                 <td>{pdl.dorm_number}</td>
@@ -832,8 +1223,16 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
                 <td>{pdl.first_time_offender === 1 || pdl.first_time_offender === '1' ? 'Yes' : 'No'}</td>
                 <td>
                   <div className="action-buttons-row">
-                    <button className="common-button edit" onClick={() => openEditModal(pdl)}>Edit</button>
-                    <button className="common-button delete" onClick={() => handleDelete(pdl.id)}>Delete</button>
+                    <button className="common-button edit" onClick={() => openEditModal(pdl)} title="Edit PDL">
+                      <svg className="button-icon" viewBox="0 0 24 24">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                      </svg>
+                    </button>
+                    <button className="common-button delete" onClick={() => handleDelete(pdl.id)} title="Delete PDL">
+                      <svg className="button-icon" viewBox="0 0 24 24">
+                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                      </svg>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -859,98 +1258,307 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
 
       {showAddModal && (
         <div className="common-modal">
-          <div className="common-modal-content wide">
-            <h3>Add a PDL</h3>
+          <div className="common-modal-content wide" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ textAlign: 'center', marginBottom: '24px', fontSize: '24px', fontWeight: '600', color: '#111827' }}>Add a PDL</h3>
             <form onSubmit={handleAddSubmit}>
-              <div className="form-grid">
-                <div className="form-row">
-                  <div className="form-col">
-                    <label>Last Name</label>
-                    <input
-                      type="text"
-                      placeholder="Last Name"
-                      value={addForm.last_name}
-                      onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })}
-                      onBlur={(e) => setAddForm({ ...addForm, last_name: capitalizeWords(e.target.value) })}
-                      required
-                    />
-                  </div>
-                  <div className="form-col">
-                    <label>First Name</label>
-                    <input
-                      type="text"
-                      placeholder="First Name"
-                      value={addForm.first_name}
-                      onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })}
-                      onBlur={(e) => setAddForm({ ...addForm, first_name: capitalizeWords(e.target.value) })}
-                      required
-                    />
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: '20px',
+                marginBottom: '24px'
+              }}>
+                {/* Personal Information Section */}
+                <div style={{ 
+                  background: '#f8fafc', 
+                  padding: '20px', 
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <h4 style={{ 
+                    margin: '0 0 20px 0', 
+                    fontSize: '16px', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    borderBottom: '2px solid #4b5563',
+                    paddingBottom: '8px'
+                  }}>
+                    Personal Information
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Last Name *</label>
+                      <input
+                        type="text"
+                        placeholder="Enter last name"
+                        value={addForm.last_name}
+                        onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })}
+                        onBlur={(e) => setAddForm({ ...addForm, last_name: capitalizeWords(e.target.value) })}
+                        required
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>First Name *</label>
+                      <input
+                        type="text"
+                        placeholder="Enter first name"
+                        value={addForm.first_name}
+                        onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })}
+                        onBlur={(e) => setAddForm({ ...addForm, first_name: capitalizeWords(e.target.value) })}
+                        required
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Middle Name</label>
+                      <input
+                        type="text"
+                        placeholder="Enter middle name"
+                        value={addForm.middle_name}
+                        onChange={(e) => setAddForm({ ...addForm, middle_name: e.target.value })}
+                        onBlur={(e) => setAddForm({ ...addForm, middle_name: capitalizeWords(e.target.value) })}
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Dorm Number *</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter dorm number" 
+                        value={addForm.dorm_number} 
+                        onChange={(e) => setAddForm({ ...addForm, dorm_number: e.target.value })} 
+                        required 
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="form-row">
-                  <div className="form-col">
-                    <label>Middle Name</label>
-                    <input
-                      type="text"
-                      placeholder="Middle Name"
-                      value={addForm.middle_name}
-                      onChange={(e) => setAddForm({ ...addForm, middle_name: e.target.value })}
-                      onBlur={(e) => setAddForm({ ...addForm, middle_name: capitalizeWords(e.target.value) })}
-                    />
-                  </div>
-                  <div className="form-col">
-                    <label>Dorm Number</label>
-                    <input type="text" placeholder="Dorm Number" value={addForm.dorm_number} onChange={(e) => setAddForm({ ...addForm, dorm_number: e.target.value })} required />
+
+                {/* Case Information Section */}
+                <div style={{ 
+                  background: '#f8fafc', 
+                  padding: '20px', 
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <h4 style={{ 
+                    margin: '0 0 20px 0', 
+                    fontSize: '16px', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    borderBottom: '2px solid #4b5563',
+                    paddingBottom: '8px'
+                  }}>
+                    Case Information
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Criminal Case No.</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter case number" 
+                        value={addForm.criminal_case_no} 
+                        onChange={(e) => setAddForm({ ...addForm, criminal_case_no: e.target.value })} 
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Offense Charge</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter offense charge" 
+                        value={addForm.offense_charge} 
+                        onChange={(e) => setAddForm({ ...addForm, offense_charge: e.target.value })} 
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Court Branch</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter court branch" 
+                        value={addForm.court_branch} 
+                        onChange={(e) => setAddForm({ ...addForm, court_branch: e.target.value })} 
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>First Time Offender</label>
+                      <select 
+                        value={addForm.first_time_offender} 
+                        onChange={(e) => setAddForm({ ...addForm, first_time_offender: e.target.value })}
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          background: '#fff',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      >
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
-                <div className="form-row">
-                  <div className="form-col">
-                    <label>Criminal Case no.</label>
-                    <input type="text" placeholder="Criminal Case no." value={addForm.criminal_case_no} onChange={(e) => setAddForm({ ...addForm, criminal_case_no: e.target.value })} />
-                  </div>
-                  <div className="form-col">
-                    <label>Offense Charge</label>
-                    <input type="text" placeholder="Offense Charge" value={addForm.offense_charge} onChange={(e) => setAddForm({ ...addForm, offense_charge: e.target.value })} />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-col">
-                    <label>Court Branch</label>
-                    <input type="text" placeholder="Court Branch" value={addForm.court_branch} onChange={(e) => setAddForm({ ...addForm, court_branch: e.target.value })} />
-                  </div>
-                  <div className="form-col">
-                    <label>First Time Offender</label>
-                    <select value={addForm.first_time_offender} onChange={(e) => setAddForm({ ...addForm, first_time_offender: e.target.value })}>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-col">
-                    <label>Arrest Date</label>
+              </div>
+
+              {/* Dates Section */}
+              <div style={{ 
+                background: '#f8fafc', 
+                padding: '20px', 
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                marginBottom: '24px'
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 20px 0', 
+                  fontSize: '16px', 
+                  fontWeight: '600', 
+                  color: '#374151',
+                  borderBottom: '2px solid #4b5563',
+                  paddingBottom: '8px'
+                }}>
+                  Important Dates
+                </h4>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '20px'
+                }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Arrest Date</label>
                     <input
                       type="date"
                       value={addForm.arrest_date}
                       max={new Date().toISOString().split('T')[0]}
                       onChange={(e) => setAddForm({ ...addForm, arrest_date: e.target.value })}
+                      style={{
+                        width: '90%',
+                        padding: '10px 12px',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: '#fff',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s ease'
+                      }}
                     />
                   </div>
-                  <div className="form-col">
-                    <label>Commitment Date</label>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Commitment Date</label>
                     <input
                       type="date"
                       value={addForm.commitment_date}
                       max={new Date().toISOString().split('T')[0]}
                       onChange={(e) => setAddForm({ ...addForm, commitment_date: e.target.value })}
+                      style={{
+                        width: '90%',
+                        padding: '10px 12px',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: '#fff',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s ease'
+                      }}
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="common-modal-buttons">
-                <button type="submit">Submit</button>
-                <button type="button" onClick={() => setShowAddModal(false)}>Cancel</button>
+              <div className="common-modal-buttons" style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                gap: '12px',
+                marginTop: '24px',
+                paddingBottom: '20px'
+              }}>
+                <button 
+                  type="submit"
+                  style={{
+                    background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Submit
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowAddModal(false)}
+                  style={{
+                    background: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
@@ -959,67 +1567,307 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
 
       {showEditModal && (
         <div className="common-modal">
-          <div className="common-modal-content">
-            <h3>Edit PDL</h3>
+          <div className="common-modal-content wide" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ textAlign: 'center', marginBottom: '24px', fontSize: '24px', fontWeight: '600', color: '#111827' }}>Edit PDL</h3>
             <form onSubmit={handleEditSubmit}>
-              <label>Last Name</label>
-              <input
-                type="text"
-                placeholder="Last Name"
-                value={editForm.last_name}
-                onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
-                onBlur={(e) => setEditForm({ ...editForm, last_name: capitalizeWords(e.target.value) })}
-                required
-              />
-              <label>First Name</label>
-              <input
-                type="text"
-                placeholder="First Name"
-                value={editForm.first_name}
-                onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
-                onBlur={(e) => setEditForm({ ...editForm, first_name: capitalizeWords(e.target.value) })}
-                required
-              />
-              <label>Middle Name</label>
-              <input
-                type="text"
-                placeholder="Middle Name"
-                value={editForm.middle_name}
-                onChange={(e) => setEditForm({ ...editForm, middle_name: e.target.value })}
-                onBlur={(e) => setEditForm({ ...editForm, middle_name: capitalizeWords(e.target.value) })}
-              />
-              <label>Dorm Number</label>
-              <input type="text" placeholder="Dorm Number" value={editForm.dorm_number} onChange={(e) => setEditForm({ ...editForm, dorm_number: e.target.value })} required />
-              <label>Criminal Case No.</label>
-              <input type="text" placeholder="Criminal Case No." value={editForm.criminal_case_no} onChange={(e) => setEditForm({ ...editForm, criminal_case_no: e.target.value })} />
-              <label>Offense Charge</label>
-              <input type="text" placeholder="Offense Charge" value={editForm.offense_charge} onChange={(e) => setEditForm({ ...editForm, offense_charge: e.target.value })} />
-              <label>Court Branch</label>
-              <input type="text" placeholder="Court Branch" value={editForm.court_branch} onChange={(e) => setEditForm({ ...editForm, court_branch: e.target.value })} />
-              <label>Arrest Date</label>
-              <input
-                type="date"
-                value={editForm.arrest_date}
-                max={new Date().toISOString().split('T')[0]}
-                onChange={(e) => setEditForm({ ...editForm, arrest_date: e.target.value })}
-              />
-              <label>Commitment Date</label>
-              <input
-                type="date"
-                value={editForm.commitment_date}
-                max={new Date().toISOString().split('T')[0]}
-                onChange={(e) => setEditForm({ ...editForm, commitment_date: e.target.value })}
-              />
-              <label>
-                First Time Offender:
-                <select value={editForm.first_time_offender} onChange={(e) => setEditForm({ ...editForm, first_time_offender: e.target.value })}>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
-              </label>
-              <div className="common-modal-buttons">
-                <button type="submit">Submit</button>
-                <button type="button" onClick={() => setShowEditModal(false)}>Cancel</button>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: '20px',
+                marginBottom: '24px'
+              }}>
+                {/* Personal Information Section */}
+                <div style={{ 
+                  background: '#f8fafc', 
+                  padding: '20px', 
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <h4 style={{ 
+                    margin: '0 0 20px 0', 
+                    fontSize: '16px', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    borderBottom: '2px solid #4b5563',
+                    paddingBottom: '8px'
+                  }}>
+                    Personal Information
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Last Name *</label>
+                      <input
+                        type="text"
+                        placeholder="Enter last name"
+                        value={editForm.last_name}
+                        onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                        onBlur={(e) => setEditForm({ ...editForm, last_name: capitalizeWords(e.target.value) })}
+                        required
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>First Name *</label>
+                      <input
+                        type="text"
+                        placeholder="Enter first name"
+                        value={editForm.first_name}
+                        onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                        onBlur={(e) => setEditForm({ ...editForm, first_name: capitalizeWords(e.target.value) })}
+                        required
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Middle Name</label>
+                      <input
+                        type="text"
+                        placeholder="Enter middle name"
+                        value={editForm.middle_name}
+                        onChange={(e) => setEditForm({ ...editForm, middle_name: e.target.value })}
+                        onBlur={(e) => setEditForm({ ...editForm, middle_name: capitalizeWords(e.target.value) })}
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Dorm Number *</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter dorm number" 
+                        value={editForm.dorm_number} 
+                        onChange={(e) => setEditForm({ ...editForm, dorm_number: e.target.value })} 
+                        required 
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Case Information Section */}
+                <div style={{ 
+                  background: '#f8fafc', 
+                  padding: '20px', 
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <h4 style={{ 
+                    margin: '0 0 20px 0', 
+                    fontSize: '16px', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    borderBottom: '2px solid #4b5563',
+                    paddingBottom: '8px'
+                  }}>
+                    Case Information
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Criminal Case No.</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter case number" 
+                        value={editForm.criminal_case_no} 
+                        onChange={(e) => setEditForm({ ...editForm, criminal_case_no: e.target.value })} 
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Offense Charge</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter offense charge" 
+                        value={editForm.offense_charge} 
+                        onChange={(e) => setEditForm({ ...editForm, offense_charge: e.target.value })} 
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Court Branch</label>
+                      <input 
+                        type="text" 
+                        placeholder="Enter court branch" 
+                        value={editForm.court_branch} 
+                        onChange={(e) => setEditForm({ ...editForm, court_branch: e.target.value })} 
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>First Time Offender</label>
+                      <select 
+                        value={editForm.first_time_offender} 
+                        onChange={(e) => setEditForm({ ...editForm, first_time_offender: e.target.value })}
+                        style={{
+                          width: '90%',
+                          padding: '10px 12px',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          background: '#fff',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.2s ease'
+                        }}
+                      >
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dates Section */}
+              <div style={{ 
+                background: '#f8fafc', 
+                padding: '20px', 
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                marginBottom: '24px'
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 20px 0', 
+                  fontSize: '16px', 
+                  fontWeight: '600', 
+                  color: '#374151',
+                  borderBottom: '2px solid #4b5563',
+                  paddingBottom: '8px'
+                }}>
+                  Important Dates
+                </h4>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '20px'
+                }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Arrest Date</label>
+                    <input
+                      type="date"
+                      value={editForm.arrest_date}
+                      max={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setEditForm({ ...editForm, arrest_date: e.target.value })}
+                      style={{
+                        width: '90%',
+                        padding: '10px 12px',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: '#fff',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Commitment Date</label>
+                    <input
+                      type="date"
+                      value={editForm.commitment_date}
+                      max={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setEditForm({ ...editForm, commitment_date: e.target.value })}
+                      style={{
+                        width: '90%',
+                        padding: '10px 12px',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        background: '#fff',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s ease'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="common-modal-buttons" style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                gap: '12px',
+                marginTop: '24px',
+                paddingBottom: '20px'
+              }}>
+                <button 
+                  type="submit"
+                  style={{
+                    background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Submit
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowEditModal(false)}
+                  style={{
+                    background: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>

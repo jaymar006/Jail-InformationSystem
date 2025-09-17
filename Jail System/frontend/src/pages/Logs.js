@@ -12,6 +12,9 @@ const Logs = () => {
 
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
+  const [filterType, setFilterType] = useState('all'); // 'all', 'year', 'month', 'day'
+  const [filterValue, setFilterValue] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchVisitors = async () => {
@@ -61,6 +64,93 @@ const Logs = () => {
       .join(' ');
   };
 
+  // Get unique years from visitor data
+  const getUniqueYears = () => {
+    const years = new Set();
+    allowedVisitors.forEach(visitor => {
+      if (visitor.time_in) {
+        const year = new Date(visitor.time_in).getFullYear();
+        years.add(year);
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a); // Sort descending (newest first)
+  };
+
+  // Get unique months from visitor data for a specific year
+  const getUniqueMonths = (year) => {
+    const months = new Set();
+    allowedVisitors.forEach(visitor => {
+      if (visitor.time_in) {
+        const date = new Date(visitor.time_in);
+        if (date.getFullYear() === year) {
+          const month = date.getMonth() + 1; // getMonth() returns 0-11
+          months.add(month);
+        }
+      }
+    });
+    return Array.from(months).sort((a, b) => b - a); // Sort descending (newest first)
+  };
+
+  // Get unique days from visitor data for a specific year and month
+  const getUniqueDays = (year, month) => {
+    const days = new Set();
+    allowedVisitors.forEach(visitor => {
+      if (visitor.time_in) {
+        const date = new Date(visitor.time_in);
+        if (date.getFullYear() === year && (date.getMonth() + 1) === month) {
+          const day = date.getDate();
+          days.add(day);
+        }
+      }
+    });
+    return Array.from(days).sort((a, b) => b - a); // Sort descending (newest first)
+  };
+
+  // Filter visitors based on selected filter and search term
+  const filterVisitors = (visitors) => {
+    let filtered = visitors;
+
+    // Apply date filter
+    if (filterType !== 'all' && filterValue) {
+      filtered = filtered.filter(visitor => {
+        if (!visitor.time_in) return false;
+        
+        const date = new Date(visitor.time_in);
+        
+        switch (filterType) {
+          case 'year':
+            return date.getFullYear() === parseInt(filterValue);
+          case 'month':
+            const [year, month] = filterValue.split('-');
+            return date.getFullYear() === parseInt(year) && (date.getMonth() + 1) === parseInt(month);
+          case 'day':
+            const [yearDay, monthDay, day] = filterValue.split('-');
+            return date.getFullYear() === parseInt(yearDay) && 
+                   (date.getMonth() + 1) === parseInt(monthDay) && 
+                   date.getDate() === parseInt(day);
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(visitor => {
+        return (
+          (visitor.visitor_name && visitor.visitor_name.toLowerCase().includes(searchLower)) ||
+          (visitor.pdl_name && visitor.pdl_name.toLowerCase().includes(searchLower)) ||
+          (visitor.relationship && visitor.relationship.toLowerCase().includes(searchLower)) ||
+          (visitor.dorm && visitor.dorm.toLowerCase().includes(searchLower)) ||
+          (visitor.contact_number && visitor.contact_number.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    return filtered;
+  };
+
   // Sorting handlers
   const onHeaderClick = (columnKey) => {
     if (sortColumn === columnKey) {
@@ -71,7 +161,8 @@ const Logs = () => {
     }
   };
 
-  const sortedVisitors = [...allowedVisitors].sort((a, b) => {
+  const filteredVisitors = filterVisitors(allowedVisitors);
+  const sortedVisitors = [...filteredVisitors].sort((a, b) => {
     if (!sortColumn) return 0;
     const aValRaw = a[sortColumn];
     const bValRaw = b[sortColumn];
@@ -202,38 +293,92 @@ const Logs = () => {
         <Header activePage="Logs" />
         <div className="common-container">
           <main>
-            <h2>Visitor Logs</h2>
-
-          <div className="action-buttons">
-            <button
-              onClick={handleExtractTable}
-              className="common-button"
-              aria-label="Extract table grouped by date"
-              style={{ marginRight: '10px' }}
-            >
-              Export To Excel
-            </button>
-            <button
-              onClick={() => {
-                setLoading(true);
-                setError(null);
-                api.get('/api/scanned_visitors')
-                  .then(res => {
-                    setAllowedVisitors(res.data);
-                    setLoading(false);
-                  })
-                  .catch(err => {
-                    console.error('Failed to fetch visitors:', err);
-                    setError('Failed to fetch visitors data');
-                    setLoading(false);
-                  });
-              }}
-              className="common-button"
-              aria-label="Refresh visitor logs"
-            >
-              Refresh
-            </button>
-          </div>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <h2 style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '12px',
+                margin: '0 0 16px 0',
+                fontSize: '28px',
+                fontWeight: '700',
+                color: '#111827'
+              }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Visitor Logs
+              </h2>
+              
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+                <button
+                  onClick={handleExtractTable}
+                  className="common-button"
+                  aria-label="Extract table grouped by date"
+                  style={{
+                    background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 4px 12px rgba(75, 85, 99, 0.2)'
+                  }}
+                >
+                  <svg className="button-icon" viewBox="0 0 24 24" style={{ width: '18px', height: '18px' }}>
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                  </svg>
+                  Export To Excel
+                </button>
+                <button
+                  onClick={() => {
+                    setLoading(true);
+                    setError(null);
+                    api.get('/api/scanned_visitors')
+                      .then(res => {
+                        setAllowedVisitors(res.data);
+                        setLoading(false);
+                      })
+                      .catch(err => {
+                        console.error('Failed to fetch visitors:', err);
+                        setError('Failed to fetch visitors data');
+                        setLoading(false);
+                      });
+                  }}
+                  className="common-button"
+                  aria-label="Refresh visitor logs"
+                  style={{
+                    background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 4px 12px rgba(75, 85, 99, 0.2)'
+                  }}
+                >
+                  <svg className="button-icon" viewBox="0 0 24 24" style={{ width: '18px', height: '18px' }}>
+                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+            </div>
           </main>
         </div>
       </>
@@ -255,16 +400,215 @@ const Logs = () => {
       <div className="common-container">
         <main>
           <section className="p-4">
-            <h2>Visitor Logs</h2>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <h2 style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '12px',
+                margin: '0 0 16px 0',
+                fontSize: '28px',
+                fontWeight: '700',
+                color: '#111827'
+              }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                Visitor Logs
+              </h2>
+              
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <button
+                  onClick={handleExtractTable}
+                  className="common-button"
+                  aria-label="Extract table grouped by date"
+                  style={{
+                    background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 4px 12px rgba(75, 85, 99, 0.2)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 6px 16px rgba(75, 85, 99, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(75, 85, 99, 0.2)';
+                  }}
+                >
+                  <svg className="button-icon" viewBox="0 0 24 24" style={{ width: '18px', height: '18px' }}>
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                  </svg>
+                  Export To Excel
+                </button>
+              </div>
+            </div>
 
-            <div className="action-buttons">
-              <button
-                onClick={handleExtractTable}
-                className="common-button"
-                aria-label="Extract table grouped by date"
-              >
-                Export To Excel
-              </button>
+            {/* Filter Controls */}
+            <div className="search-filter-container">
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr auto 1fr',
+                alignItems: 'center',
+                gap: '20px',
+                width: '100%'
+              }}>
+                {/* Search Section - Left Column */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifySelf: 'start' }}>
+                  <label style={{ fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                    Search:
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Search visitors, PDLs, relationships..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onFocus={(e) => {
+                        e.target.style.outline = 'none';
+                        e.target.style.borderColor = '#4b5563';
+                        e.target.style.boxShadow = '0 0 0 3px rgba(75, 85, 99, 0.1)';
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = '#e5e7eb';
+                        e.target.style.boxShadow = 'none';
+                      }}
+                      style={{
+                        padding: '8px 12px',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        transition: 'all 0.2s ease',
+                        background: '#fff',
+                        width: '250px'
+                      }}
+                    />
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        style={{
+                          padding: '8px',
+                          border: 'none',
+                          background: '#ef4444',
+                          color: 'white',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s ease'
+                        }}
+                        title="Clear search"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"/>
+                          <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Empty Middle Column - Creates Space */}
+                <div></div>
+                
+                {/* Show Only Section - Right Column */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifySelf: 'end' }}>
+                  <label style={{ fontWeight: '600', color: '#374151', fontSize: '14px' }}>
+                    Show Only:
+                  </label>
+                  <select
+                    value={filterType}
+                    onChange={(e) => {
+                      setFilterType(e.target.value);
+                      setFilterValue('');
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      background: '#fff',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <option value="all">All Records</option>
+                    <option value="year">By Year</option>
+                    <option value="month">By Month</option>
+                    <option value="day">By Day</option>
+                  </select>
+                  
+                  {filterType !== 'all' && (
+                    <select
+                      value={filterValue}
+                      onChange={(e) => setFilterValue(e.target.value)}
+                      style={{
+                        padding: '8px 12px',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        background: '#fff',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        minWidth: '120px'
+                      }}
+                    >
+                      <option value="">Select {filterType}...</option>
+                      {filterType === 'year' && getUniqueYears().map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                      {filterType === 'month' && getUniqueYears().map(year => 
+                        getUniqueMonths(year).map(month => (
+                          <option key={`${year}-${month}`} value={`${year}-${month}`}>
+                            {new Date(year, month - 1).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'long' 
+                            })}
+                          </option>
+                        ))
+                      )}
+                      {filterType === 'day' && getUniqueYears().map(year => 
+                        getUniqueMonths(year).map(month => 
+                          getUniqueDays(year, month).map(day => (
+                            <option key={`${year}-${month}-${day}`} value={`${year}-${month}-${day}`}>
+                              {new Date(year, month - 1, day).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}
+                            </option>
+                          ))
+                        )
+                      )}
+                    </select>
+                  )}
+                  
+                  <div style={{ 
+                    background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)', 
+                    color: 'white', 
+                    padding: '8px 12px', 
+                    borderRadius: '6px', 
+                    fontWeight: '600',
+                    fontSize: '12px'
+                  }}>
+                    Showing: {sortedVisitors.length} of {allowedVisitors.length} records
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
