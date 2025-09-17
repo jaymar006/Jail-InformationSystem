@@ -22,7 +22,7 @@ exports.login = async (req, res) => {
 };
 
 exports.signUp = async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, securityQuestion1, securityAnswer1, securityQuestion2, securityAnswer2 } = req.body;
 
   try {
     const existingUser = await userModel.findUserByUsername(username);
@@ -31,7 +31,10 @@ exports.signUp = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    await userModel.createUser(username, hashedPassword);
+    const hashedAnswer1 = await bcrypt.hash(securityAnswer1.toLowerCase(), 10);
+    const hashedAnswer2 = await bcrypt.hash(securityAnswer2.toLowerCase(), 10);
+    
+    await userModel.createUser(username, hashedPassword, securityQuestion1, hashedAnswer1, securityQuestion2, hashedAnswer2);
     res.json({ message: 'User registered successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -59,6 +62,36 @@ exports.getUsernameFromDb = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     res.json({ usernameFromDb: user.username });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+exports.resetPasswordSecurity = async (req, res) => {
+  const { username, securityQuestion, securityAnswer, newPassword } = req.body;
+
+  try {
+    // Verify the user exists
+    const user = await userModel.findUserByUsername(username);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify the security answer
+    const isAnswerCorrect = await userModel.verifySecurityAnswer(username, securityQuestion, securityAnswer);
+    if (!isAnswerCorrect) {
+      return res.status(400).json({ message: 'Invalid security question or answer' });
+    }
+
+    // Hash the new password and update
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    const updated = await userModel.updateUserPassword(username, hashedNewPassword);
+    
+    if (updated) {
+      res.json({ message: 'Password reset successfully' });
+    } else {
+      res.status(500).json({ message: 'Failed to update password' });
+    }
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
