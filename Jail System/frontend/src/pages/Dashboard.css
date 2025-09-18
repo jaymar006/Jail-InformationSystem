@@ -39,6 +39,11 @@
   #printable-dashboard > button.common-button.delete {
     display: none;
   }
+
+  /* Hide checkbox column and other no-print elements */
+  .no-print {
+    display: none !important;
+  }
 }
 
 .dashboard-main {

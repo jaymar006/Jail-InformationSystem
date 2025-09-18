@@ -409,7 +409,11 @@ const Dashboard = () => {
             </div>
 
             <b style={{ display: 'block', textAlign: 'center', marginBottom: '10px' }}>
-              {new Date().toLocaleDateString()}
+              {new Date().toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
             </b>
             <h2 style={{ textAlign: 'center' }}>Allowed Visitors</h2>
 
@@ -417,7 +421,7 @@ const Dashboard = () => {
             <table className="common-table">
               <thead>
                 <tr>
-                  <th>
+                  <th className="no-print">
                     <input
                       type="checkbox"
                       checked={selectAll}
@@ -435,7 +439,7 @@ const Dashboard = () => {
               </thead>
               <tbody>
                 {filteredVisitors.length === 0 ? (
-                  <tr><td colSpan="8">No records</td></tr>
+                  <tr><td colSpan="7">No records</td></tr>
                 ) : (
                   filteredVisitors.map(v => (
                     <tr
@@ -446,7 +450,7 @@ const Dashboard = () => {
                         cursor: 'pointer'
                       }}
                     >
-                      <td>
+                      <td className="no-print">
                         <input
                           type="checkbox"
                           checked={selectedDeleteIds.includes(v.id)}
