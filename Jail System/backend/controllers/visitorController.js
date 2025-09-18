@@ -168,20 +168,20 @@ exports.getScannedVisitors = async (req, res) => {
 
 exports.addScannedVisitor = async (req, res) => {
   try {
-    let { visitor_name, pdl_name, dorm, relationship, contact_number, device_time, purpose, only_check } = req.body;
-    if (!visitor_name || !pdl_name || !dorm) {
-      return res.status(400).json({ error: 'visitor_name, pdl_name, and dorm are required' });
+    let { visitor_name, pdl_name, cell, relationship, contact_number, device_time, purpose, only_check } = req.body;
+    if (!visitor_name || !pdl_name || !cell) {
+      return res.status(400).json({ error: 'visitor_name, pdl_name, and cell are required' });
     }
 
     visitor_name = visitor_name.trim();
     pdl_name = pdl_name.trim().toLowerCase();
-    dorm = dorm.trim().toLowerCase();
+    cell = cell.trim().toLowerCase();
     relationship = relationship ? relationship.trim() : null;
     contact_number = contact_number ? contact_number.trim() : null;
 
-    console.log('addScannedVisitor input:', { visitor_name, pdl_name, dorm, relationship, contact_number, purpose });
+    console.log('addScannedVisitor input:', { visitor_name, pdl_name, cell, relationship, contact_number, purpose });
 
-    const openScan = await ScannedVisitor.findOpenScanByVisitorDetails(visitor_name, pdl_name, dorm);
+    const openScan = await ScannedVisitor.findOpenScanByVisitorDetails(visitor_name, pdl_name, cell);
 
     if (only_check) {
       if (openScan && !openScan.time_out) {
@@ -214,7 +214,7 @@ exports.addScannedVisitor = async (req, res) => {
       const scannedVisitorData = {
         visitor_name,
         pdl_name,
-        dorm,
+        cell,
         time_in: localTimeIn,
         time_out: null,
         scan_date: localTimeIn,

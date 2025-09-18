@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS pdls (
   last_name TEXT NOT NULL,
   first_name TEXT NOT NULL,
   middle_name TEXT,
-  dorm_number TEXT NOT NULL,
+  cell_number TEXT NOT NULL,
   criminal_case_no TEXT,
   offense_charge TEXT,
   court_branch TEXT,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS denied_visitors (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   visitor_name TEXT NOT NULL,
   pdl_name TEXT NOT NULL,
-  dorm TEXT NOT NULL,
+  cell TEXT NOT NULL,
   time_in TEXT NOT NULL,
   reason TEXT NOT NULL,
   created_at TEXT DEFAULT (datetime('now')),
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS scanned_visitors (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   visitor_name TEXT NOT NULL,
   pdl_name TEXT NOT NULL,
-  dorm TEXT NOT NULL,
+  cell TEXT NOT NULL,
   time_in TEXT NOT NULL,
   time_out TEXT,
   scan_date TEXT NOT NULL,
@@ -85,6 +85,16 @@ CREATE TABLE IF NOT EXISTS users (
   security_question_2 TEXT NOT NULL DEFAULT '',
   security_answer_2 TEXT NOT NULL DEFAULT '',
   created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS cells (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cell_number TEXT NOT NULL UNIQUE,
+  cell_name TEXT,
+  capacity INTEGER DEFAULT 1,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
 );
 `;
 
@@ -118,6 +128,51 @@ sqliteDb.serialize(() => {
       ensureColumn('users', 'security_answer_1', 'TEXT', "NOT NULL DEFAULT ''");
       ensureColumn('users', 'security_question_2', 'TEXT', "NOT NULL DEFAULT ''");
       ensureColumn('users', 'security_answer_2', 'TEXT', "NOT NULL DEFAULT ''");
+      
+      // Migration: Rename dorm columns to cell
+      const migrateDormToCell = () => {
+        // Check if dorm_number exists in pdls table and rename to cell_number
+        sqliteDb.all(`PRAGMA table_info(pdls);`, (e, rows) => {
+          if (e) return console.error('Failed to read pdls schema:', e);
+          const hasDormNumber = rows && rows.some(r => r.name === 'dorm_number');
+          const hasCellNumber = rows && rows.some(r => r.name === 'cell_number');
+          if (hasDormNumber && !hasCellNumber) {
+            sqliteDb.run(`ALTER TABLE pdls RENAME COLUMN dorm_number TO cell_number`, (alterErr) => {
+              if (alterErr) console.error('Failed to rename pdls.dorm_number to cell_number:', alterErr);
+              else console.log('Renamed pdls.dorm_number to cell_number');
+            });
+          }
+        });
+        
+        // Check if dorm exists in denied_visitors table and rename to cell
+        sqliteDb.all(`PRAGMA table_info(denied_visitors);`, (e, rows) => {
+          if (e) return console.error('Failed to read denied_visitors schema:', e);
+          const hasDorm = rows && rows.some(r => r.name === 'dorm');
+          const hasCell = rows && rows.some(r => r.name === 'cell');
+          if (hasDorm && !hasCell) {
+            sqliteDb.run(`ALTER TABLE denied_visitors RENAME COLUMN dorm TO cell`, (alterErr) => {
+              if (alterErr) console.error('Failed to rename denied_visitors.dorm to cell:', alterErr);
+              else console.log('Renamed denied_visitors.dorm to cell');
+            });
+          }
+        });
+        
+        // Check if dorm exists in scanned_visitors table and rename to cell
+        sqliteDb.all(`PRAGMA table_info(scanned_visitors);`, (e, rows) => {
+          if (e) return console.error('Failed to read scanned_visitors schema:', e);
+          const hasDorm = rows && rows.some(r => r.name === 'dorm');
+          const hasCell = rows && rows.some(r => r.name === 'cell');
+          if (hasDorm && !hasCell) {
+            sqliteDb.run(`ALTER TABLE scanned_visitors RENAME COLUMN dorm TO cell`, (alterErr) => {
+              if (alterErr) console.error('Failed to rename scanned_visitors.dorm to cell:', alterErr);
+              else console.log('Renamed scanned_visitors.dorm to cell');
+            });
+          }
+        });
+      };
+      
+      // Run migration
+      migrateDormToCell();
     }
   });
 });

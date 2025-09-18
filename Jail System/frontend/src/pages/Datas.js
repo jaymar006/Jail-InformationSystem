@@ -50,7 +50,7 @@ const toYMD = (value) => {
   // If value is a string like MM/DD/YYYY or YYYY-MM-DD
   const str = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  const mdY = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  const mdY = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (mdY) {
     const m = mdY[1].padStart(2, '0');
     const d = mdY[2].padStart(2, '0');
@@ -68,118 +68,7 @@ const toYMD = (value) => {
   return '';
 };
 
-// Parse PDL Name in the format "Last, First Middle" into parts
-// Supports multi-word first names: treats the LAST token as middle name, the rest as first name
-const parsePdlName = (full) => {
-  const raw = normalizeSpaces(full);
-  if (!raw) return { last_name: '', first_name: '', middle_name: '' };
-  const [lastRaw, restRaw = ''] = raw.split(',');
-  const last_name = capitalizeWords(normalizeSpaces(lastRaw));
-  const rest = normalizeSpaces(restRaw);
-  if (!rest) return { last_name, first_name: '', middle_name: '' };
-  const parts = rest.split(' ');
-  if (parts.length === 1) {
-    return { last_name, first_name: capitalizeWords(parts[0]), middle_name: '' };
-  }
-  const middle_name = capitalizeWords(parts[parts.length - 1]);
-  const first_name = capitalizeWords(parts.slice(0, -1).join(' '));
-  return { last_name, first_name, middle_name };
-};
 
-const exportVisitorsToExcel = async (pdls) => {
-  try {
-    console.log('Exporting visitors for pdls in order:', pdls.map(p => p.id));
-    const response = await axios.get('/api/visitors');
-    const visitors = response.data;
-
-    // Group visitors by pdl id
-    const visitorsByPdl = visitors.reduce((acc, visitor) => {
-      const pdlId = visitor.pdl_id;
-      if (!acc[pdlId]) {
-        acc[pdlId] = [];
-      }
-      acc[pdlId].push(visitor);
-      return acc;
-    }, {});
-
-    // Prepare data for export with separate PDL columns, and include pdls with no visitors
-    const dataToExport = [];
-
-    pdls.forEach(pdl => {
-      const pdlVisitors = visitorsByPdl[pdl.id] || [];
-      if (pdlVisitors.length === 0) {
-        // Include pdl with no visitors
-        dataToExport.push({
-          'PDL Last Name': pdl.last_name || '',
-          'PDL First Name': pdl.first_name || '',
-          'PDL Middle Name': pdl.middle_name || '',
-          'Visitor Name': '',
-          'Relationship': '',
-          'Age': '',
-          'Address': '',
-          'Valid ID': '',
-          'Date of Application': '',
-          'Contact Number': '',
-        });
-      } else {
-        // Sort visitors by name alphabetically
-        const sortedVisitors = pdlVisitors.sort((a, b) => {
-          const nameA = (a.name || '').toLowerCase();
-          const nameB = (b.name || '').toLowerCase();
-          if (nameA < nameB) return -1;
-          if (nameA > nameB) return 1;
-          return 0;
-        });
-        sortedVisitors.forEach((visitor, index) => {
-          dataToExport.push({
-            'PDL Last Name': index === 0 ? (pdl.last_name || '') : '',
-            'PDL First Name': index === 0 ? (pdl.first_name || '') : '',
-            'PDL Middle Name': index === 0 ? (pdl.middle_name || '') : '',
-            'Visitor Name': visitor.name || '',
-            'Relationship': visitor.relationship || '',
-            'Age': visitor.age || '',
-            'Address': visitor.address || '',
-            'Valid ID': visitor.valid_id || '',
-            'Date of Application': formatDateOnly(visitor.date_of_application),
-            'Contact Number': visitor.contact_number || '',
-          });
-        });
-      }
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-
-    // Set column widths to fit content approximately (no compression)
-    worksheet['!cols'] = [
-      { wch: 18 }, // PDL Last Name
-      { wch: 18 }, // PDL First Name
-      { wch: 18 }, // PDL Middle Name
-      { wch: 20 }, // Visitor Name
-      { wch: 15 }, // Relationship
-      { wch: 10 }, // Age
-      { wch: 30 }, // Address
-      { wch: 20 }, // Valid ID
-      { wch: 20 }, // Date of Application
-      { wch: 20 }, // Contact Number
-    ];
-
-    const range = XLSX.utils.decode_range(worksheet['!ref']);
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
-      if (!worksheet[cellAddress]) continue;
-      if (!worksheet[cellAddress].s) worksheet[cellAddress].s = {};
-      worksheet[cellAddress].s.font = { bold: true };
-      worksheet[cellAddress].s.alignment = { horizontal: "left" };
-    }
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Visitors');
-    XLSX.writeFile(workbook, 'Visitors_export.xlsx');
-  } catch (error) {
-    console.error('Failed to export visitors:', error);
-    alert('Failed to export visitors');
-  }
-};
 
 const Datas = () => {
   const [pdls, setPdls] = useState([]);
@@ -235,7 +124,7 @@ const Datas = () => {
     last_name: '',
     first_name: '',
     middle_name: '',
-    dorm_number: '',
+    cell_number: '',
     criminal_case_no: '',
     offense_charge: '',
     court_branch: '',
@@ -243,6 +132,7 @@ const Datas = () => {
     commitment_date: '',
     first_time_offender: 'No',
   });
+  const [availableCells, setAvailableCells] = useState([]);
 
   const openEditModal = (pdl) => {
     const normalizedPdl = {
@@ -256,7 +146,121 @@ const Datas = () => {
 
   useEffect(() => {
     fetchPdls();
+    fetchAvailableCells();
   }, []);
+
+  const fetchAvailableCells = async () => {
+    try {
+      const response = await axios.get('/api/cells/active');
+      setAvailableCells(response.data);
+    } catch (error) {
+      console.error('Failed to fetch cells:', error);
+    }
+  };
+
+  const exportVisitorsToExcel = async (pdls) => {
+    try {
+      console.log('Exporting visitors for pdls in order:', pdls.map(p => p.id));
+      const response = await axios.get('/api/visitors');
+      const visitors = response.data;
+
+      // Group visitors by pdl id
+      const visitorsByPdl = visitors.reduce((acc, visitor) => {
+        const pdlId = visitor.pdl_id;
+        if (!acc[pdlId]) {
+          acc[pdlId] = [];
+        }
+        acc[pdlId].push(visitor);
+        return acc;
+      }, {});
+
+      // Prepare data for export with separate PDL columns, and include pdls with no visitors
+      const dataToExport = [];
+
+      pdls.forEach(pdl => {
+        const pdlVisitors = visitorsByPdl[pdl.id] || [];
+        if (pdlVisitors.length === 0) {
+          // Include pdl with no visitors
+          const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
+          const cellDisplay = cell && cell.cell_name ? `${cell.cell_name} - ${pdl.cell_number}` : pdl.cell_number;
+          
+          dataToExport.push({
+            'PDL Last Name': pdl.last_name || '',
+            'PDL First Name': pdl.first_name || '',
+            'PDL Middle Name': pdl.middle_name || '',
+            'Cell Number': cellDisplay,
+            'Visitor Name': '',
+            'Relationship': '',
+            'Age': '',
+            'Address': '',
+            'Valid ID': '',
+            'Date of Application': '',
+            'Contact Number': '',
+          });
+        } else {
+          // Sort visitors by name alphabetically
+          const sortedVisitors = pdlVisitors.sort((a, b) => {
+            const nameA = (a.name || '').toLowerCase();
+            const nameB = (b.name || '').toLowerCase();
+            if (nameA < nameB) return -1;
+            if (nameA > nameB) return 1;
+            return 0;
+          });
+          sortedVisitors.forEach((visitor, index) => {
+            const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
+            const cellDisplay = cell && cell.cell_name ? `${pdl.cell_number} - ${cell.cell_name}` : pdl.cell_number;
+            
+            dataToExport.push({
+              'PDL Last Name': index === 0 ? (pdl.last_name || '') : '',
+              'PDL First Name': index === 0 ? (pdl.first_name || '') : '',
+              'PDL Middle Name': index === 0 ? (pdl.middle_name || '') : '',
+              'Cell Number': index === 0 ? cellDisplay : '',
+              'Visitor Name': visitor.name || '',
+              'Relationship': visitor.relationship || '',
+              'Age': visitor.age || '',
+              'Address': visitor.address || '',
+              'Valid ID': visitor.valid_id || '',
+              'Date of Application': formatDateOnly(visitor.date_of_application),
+              'Contact Number': visitor.contact_number || '',
+            });
+          });
+        }
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Set column widths to fit content approximately (no compression)
+      worksheet['!cols'] = [
+        { wch: 18 }, // PDL Last Name
+        { wch: 18 }, // PDL First Name
+        { wch: 18 }, // PDL Middle Name
+        { wch: 20 }, // Cell Number
+        { wch: 20 }, // Visitor Name
+        { wch: 15 }, // Relationship
+        { wch: 10 }, // Age
+        { wch: 30 }, // Address
+        { wch: 20 }, // Valid ID
+        { wch: 20 }, // Date of Application
+        { wch: 20 }, // Contact Number
+      ];
+
+      const range = XLSX.utils.decode_range(worksheet['!ref']);
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C });
+        if (!worksheet[cellAddress]) continue;
+        if (!worksheet[cellAddress].s) worksheet[cellAddress].s = {};
+        worksheet[cellAddress].s.font = { bold: true };
+        worksheet[cellAddress].s.alignment = { horizontal: "left" };
+      }
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Visitors');
+      XLSX.writeFile(workbook, 'Visitors_export.xlsx');
+    } catch (error) {
+      console.error('Failed to export visitors:', error);
+      alert('Failed to export visitors');
+    }
+  };
 
   const fetchPdls = async () => {
     try {
@@ -308,7 +312,7 @@ const Datas = () => {
         last_name: '',
         first_name: '',
         middle_name: '',
-        dorm_number: '',
+        cell_number: '',
         criminal_case_no: '',
         offense_charge: '',
         court_branch: '',
@@ -473,7 +477,7 @@ const Datas = () => {
       'Last Name',
       'First Name',
       'Middle Name',
-      'Dorm Number',
+      'Cell Number',
       'Criminal Case No.',
       'Offense Charge',
       'Court Branch',
@@ -537,7 +541,7 @@ const Datas = () => {
           last_name: capitalizeWords(String(row['Last Name'] || '').trim()),
           first_name: capitalizeWords(String(row['First Name'] || '').trim()),
           middle_name: capitalizeWords(String(row['Middle Name'] || '').trim()),
-          dorm_number: String(row['Dorm Number'] || '').trim(),
+          cell_number: String(row['Cell Number'] || '').trim(),
           criminal_case_no: String(row['Criminal Case No.'] || '').trim(),
           offense_charge: String(row['Offense Charge'] || '').trim(),
           court_branch: String(row['Court Branch'] || '').trim(),
@@ -547,9 +551,9 @@ const Datas = () => {
         };
 
         // Basic validation
-        if (!payload.last_name || !payload.first_name || !payload.dorm_number) {
+        if (!payload.last_name || !payload.first_name || !payload.cell_number) {
           failed += 1;
-          errors.push(`Row ${index + 2}: Missing required fields (Last Name, First Name, Dorm Number)`);
+          errors.push(`Row ${index + 2}: Missing required fields (Last Name, First Name, Cell Number)`);
           continue;
         }
 
@@ -633,7 +637,7 @@ const Datas = () => {
               last_name: pdlLast,
               first_name: pdlFirst,
               middle_name: pdlMiddle,
-              dorm_number: 'TBD', // Default value, user can update later
+              cell_number: 'TBD', // Default value, user can update later
               criminal_case_no: '',
               offense_charge: '',
               court_branch: '',
@@ -754,7 +758,7 @@ const Datas = () => {
           (pdl.criminal_case_no && pdl.criminal_case_no.toLowerCase().includes(searchLower)) ||
           (pdl.offense_charge && pdl.offense_charge.toLowerCase().includes(searchLower)) ||
           (pdl.court_branch && pdl.court_branch.toLowerCase().includes(searchLower)) ||
-          (pdl.dorm_number && pdl.dorm_number.toLowerCase().includes(searchLower))
+          (pdl.cell_number && pdl.cell_number.toLowerCase().includes(searchLower))
         );
       });
     }
@@ -765,17 +769,17 @@ const Datas = () => {
   const filteredSortedPdls = filterPdls(pdls)
     .sort((a, b) => {
       // Preserve existing explicit sort options if set
-      const dormA = parseInt(a.dorm_number, 10) || 0;
-      const dormB = parseInt(b.dorm_number, 10) || 0;
-      if (sortOption === 'dorm') {
-        return dormA - dormB;
+      const cellA = parseInt(a.cell_number, 10) || 0;
+      const cellB = parseInt(b.cell_number, 10) || 0;
+      if (sortOption === 'cell') {
+        return cellA - cellB;
       } else if (sortOption === 'alphabetical') {
-        if (dormA !== dormB) return dormA - dormB;
+        if (cellA !== cellB) return cellA - cellB;
         return a.last_name.localeCompare(b.last_name);
-      } else if (sortOption === 'alphabeticalWithDorm') {
+      } else if (sortOption === 'alphabeticalWithCell') {
         const lastNameCompare = a.last_name.localeCompare(b.last_name);
         if (lastNameCompare !== 0) return lastNameCompare;
-        return dormA - dormB;
+        return cellA - cellB;
       }
 
       // New header sorting if sortColumn is set
@@ -801,18 +805,23 @@ const Datas = () => {
   }, [selectedPdlIds, currentPdls]);
 
   const exportToExcel = () => {
-    const dataToExport = filteredSortedPdls.map(pdl => ({
-      'Last Name': pdl.last_name,
-      'First Name': pdl.first_name,
-      'Middle Name': pdl.middle_name,
-      'Dorm Number': pdl.dorm_number,
-      'Criminal Case No.': pdl.criminal_case_no,
-      'Offense Charge': pdl.offense_charge,
-      'Court Branch': pdl.court_branch,
-      'Date of Arrest': formatDate(pdl.arrest_date),
-      'Date of Commitment': formatDate(pdl.commitment_date),
-      'First Time Offender': pdl.first_time_offender === 1 || pdl.first_time_offender === '1' ? 'Yes' : 'No',
-    }));
+    const dataToExport = filteredSortedPdls.map(pdl => {
+      const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
+      const cellDisplay = cell && cell.cell_name ? `${pdl.cell_number} - ${cell.cell_name}` : pdl.cell_number;
+      
+      return {
+        'Last Name': pdl.last_name,
+        'First Name': pdl.first_name,
+        'Middle Name': pdl.middle_name,
+        'Cell Number': cellDisplay,
+        'Criminal Case No.': pdl.criminal_case_no,
+        'Offense Charge': pdl.offense_charge,
+        'Court Branch': pdl.court_branch,
+        'Date of Arrest': formatDate(pdl.arrest_date),
+        'Date of Commitment': formatDate(pdl.commitment_date),
+        'First Time Offender': pdl.first_time_offender === 1 || pdl.first_time_offender === '1' ? 'Yes' : 'No',
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
 
@@ -821,7 +830,7 @@ const Datas = () => {
       { wch: 15 }, // Last Name
       { wch: 18 }, // First Name
       { wch: 15 }, // Middle Name
-      { wch: 12 }, // Dorm Number
+      { wch: 20 }, // Cell Number (wider to accommodate cell name)
       { wch: 20 }, // Criminal Case No.
       { wch: 30 }, // Offense Charge
       { wch: 20 }, // Court Branch
@@ -862,10 +871,14 @@ const exportPdlsWithVisitorsToExcel = async () => {
     sortedPdls.forEach(pdl => {
       const pdlVisitors = (visitorsByPdl[pdl.id] || []).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       if (pdlVisitors.length === 0) {
+        const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
+        const cellDisplay = cell && cell.cell_name ? `${pdl.cell_number} - ${cell.cell_name}` : pdl.cell_number;
+        
         rows.push({
           'PDL Last Name': pdl.last_name || '',
           'PDL First Name': pdl.first_name || '',
           'PDL Middle Name': pdl.middle_name || '',
+          'Cell Number': cellDisplay,
           'Visitor Name': '',
           'Relationship': '',
           'Age': '',
@@ -876,10 +889,14 @@ const exportPdlsWithVisitorsToExcel = async () => {
         });
       } else {
         pdlVisitors.forEach((v, idx) => {
+          const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
+          const cellDisplay = cell && cell.cell_name ? `${cell.cell_name} - ${pdl.cell_number}` : pdl.cell_number;
+          
           rows.push({
             'PDL Last Name': idx === 0 ? (pdl.last_name || '') : '',
             'PDL First Name': idx === 0 ? (pdl.first_name || '') : '',
             'PDL Middle Name': idx === 0 ? (pdl.middle_name || '') : '',
+            'Cell Number': idx === 0 ? cellDisplay : '',
             'Visitor Name': v.name || '',
             'Relationship': v.relationship || '',
             'Age': v.age || '',
@@ -894,7 +911,7 @@ const exportPdlsWithVisitorsToExcel = async () => {
 
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 30 }, { wch: 16 }, { wch: 18 }, { wch: 16 }
+      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 30 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 }
     ];
     const range = XLSX.utils.decode_range(ws['!ref']);
     for (let C = range.s.c; C <= range.e.c; ++C) {
@@ -913,7 +930,6 @@ const exportPdlsWithVisitorsToExcel = async () => {
   }
 };
 
-const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if needed
 
   const exportVisitorsToExcelLinkHandler = () => {
     exportPdlsWithVisitorsToExcel();
@@ -1082,9 +1098,9 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
                 }}
               >
                 <option value="none">No Sort</option>
-                <option value="dorm">Sort by Dorm</option>
-                <option value="alphabetical">Sort Alphabetically with Dorm</option>
-                <option value="alphabeticalWithDorm">Sort Alphabetically</option>
+                <option value="cell">Sort by Cell</option>
+                <option value="alphabetical">Sort Alphabetically with Cell</option>
+                <option value="alphabeticalWithCell">Sort Alphabetically</option>
               </select>
             </div>
             
@@ -1190,7 +1206,7 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
               <th className="sortable-th" onClick={() => onHeaderClick('last_name')}>Last Name</th>
               <th className="sortable-th" onClick={() => onHeaderClick('first_name')}>First Name</th>
               <th className="sortable-th" onClick={() => onHeaderClick('middle_name')}>Middle Name</th>
-              <th className="sortable-th" onClick={() => onHeaderClick('dorm_number')}>Dorm Number</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('cell_number')}>Cell Number</th>
               <th className="sortable-th" onClick={() => onHeaderClick('criminal_case_no')}>Criminal Case No.</th>
               <th className="sortable-th" onClick={() => onHeaderClick('offense_charge')}>Offense Charge</th>
               <th className="sortable-th" onClick={() => onHeaderClick('court_branch')}>Court Branch</th>
@@ -1214,7 +1230,12 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
                 <td onClick={() => handlePdlClick(pdl)} style={{ cursor: 'pointer' }}>{pdl.last_name}</td>
                 <td>{pdl.first_name}</td>
                 <td>{pdl.middle_name}</td>
-                <td>{pdl.dorm_number}</td>
+                <td>
+                  {(() => {
+                    const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
+                    return cell && cell.cell_name ? `${cell.cell_name} - ${pdl.cell_number}` : pdl.cell_number;
+                  })()}
+                </td>
                 <td>{pdl.criminal_case_no}</td>
                 <td>{pdl.offense_charge}</td>
                 <td>{pdl.court_branch}</td>
@@ -1342,12 +1363,10 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Dorm Number *</label>
-                      <input 
-                        type="text" 
-                        placeholder="Enter dorm number" 
-                        value={addForm.dorm_number} 
-                        onChange={(e) => setAddForm({ ...addForm, dorm_number: e.target.value })} 
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Cell Number *</label>
+                      <select 
+                        value={addForm.cell_number} 
+                        onChange={(e) => setAddForm({ ...addForm, cell_number: e.target.value })} 
                         required 
                         style={{
                           width: '90%',
@@ -1355,9 +1374,18 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
                           border: '2px solid #e5e7eb',
                           borderRadius: '6px',
                           fontSize: '14px',
+                          background: '#fff',
+                          cursor: 'pointer',
                           transition: 'border-color 0.2s ease'
                         }}
-                      />
+                      >
+                        <option value="">Select a cell...</option>
+                        {availableCells.map((cell) => (
+                          <option key={cell.id} value={cell.cell_number}>
+                            {cell.cell_number} {cell.cell_name ? `- ${cell.cell_name}` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -1651,12 +1679,10 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Dorm Number *</label>
-                      <input 
-                        type="text" 
-                        placeholder="Enter dorm number" 
-                        value={editForm.dorm_number} 
-                        onChange={(e) => setEditForm({ ...editForm, dorm_number: e.target.value })} 
+                      <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#374151' }}>Cell Number *</label>
+                      <select 
+                        value={editForm.cell_number} 
+                        onChange={(e) => setEditForm({ ...editForm, cell_number: e.target.value })} 
                         required 
                         style={{
                           width: '90%',
@@ -1664,9 +1690,18 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
                           border: '2px solid #e5e7eb',
                           borderRadius: '6px',
                           fontSize: '14px',
+                          background: '#fff',
+                          cursor: 'pointer',
                           transition: 'border-color 0.2s ease'
                         }}
-                      />
+                      >
+                        <option value="">Select a cell...</option>
+                        {availableCells.map((cell) => (
+                          <option key={cell.id} value={cell.cell_number}>
+                            {cell.cell_number} {cell.cell_name ? `- ${cell.cell_name}` : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -1877,5 +1912,5 @@ const exportVisitorsToExcelLegacy = exportVisitorsToExcel; // keep reference if 
   );
 };
 
-export { Datas, exportVisitorsToExcel };
+export { Datas };
 export default Datas;

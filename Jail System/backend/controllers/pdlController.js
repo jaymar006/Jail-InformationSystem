@@ -2,7 +2,7 @@ const PDL = require('../models/pdlModel');
 
 const validatePdlData = (data) => {
   const requiredFields = [
-    'first_name', 'last_name', 'dorm_number'
+    'first_name', 'last_name', 'cell_number'
   ];
   for (const field of requiredFields) {
     if (!data[field]) {

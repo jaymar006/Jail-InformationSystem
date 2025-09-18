@@ -4,7 +4,7 @@ const PDL = {
   getAll: () => {
     const sql = `
       SELECT 
-        id, first_name, middle_name, last_name, dorm_number,
+        id, first_name, middle_name, last_name, cell_number,
         criminal_case_no, offense_charge, court_branch,
         date(arrest_date) AS arrest_date,
         date(commitment_date) AS commitment_date,
@@ -24,7 +24,7 @@ const PDL = {
       first_name,
       middle_name,
       last_name,
-      dorm_number,
+      cell_number,
       criminal_case_no,
       offense_charge,
       court_branch,
@@ -37,7 +37,7 @@ const PDL = {
 
     const sql = `
       INSERT INTO pdls (
-        first_name, middle_name, last_name, dorm_number,
+        first_name, middle_name, last_name, cell_number,
         criminal_case_no, offense_charge, court_branch,
         arrest_date, commitment_date, first_time_offender
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -47,7 +47,7 @@ const PDL = {
         first_name,
         middle_name,
         last_name,
-        dorm_number,
+        cell_number,
         criminal_case_no,
         offense_charge,
         court_branch,
@@ -66,7 +66,7 @@ const PDL = {
       first_name,
       middle_name,
       last_name,
-      dorm_number,
+      cell_number,
       criminal_case_no,
       offense_charge,
       court_branch,
@@ -79,7 +79,7 @@ const PDL = {
 
     const sql = `
       UPDATE pdls SET
-        first_name = ?, middle_name = ?, last_name = ?, dorm_number = ?,
+        first_name = ?, middle_name = ?, last_name = ?, cell_number = ?,
         criminal_case_no = ?, offense_charge = ?, court_branch = ?,
         arrest_date = ?, commitment_date = ?, first_time_offender = ?
       WHERE id = ?
@@ -89,7 +89,7 @@ const PDL = {
         first_name,
         middle_name,
         last_name,
-        dorm_number,
+        cell_number,
         criminal_case_no,
         offense_charge,
         court_branch,

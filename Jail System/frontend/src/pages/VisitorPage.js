@@ -1068,11 +1068,11 @@ const VisitorPage = () => {
                       <div className="id-card-title" style={{ fontWeight: 'bold', marginTop: '5px', marginBottom: '10px', fontSize: '1rem', textAlign: 'center' }}>PDL to be Visit</div>
                       <div className="id-card-info" style={{ fontSize: '0.9rem', marginTop: '5px', textAlign: 'center' }}>
                         <div><strong>Name:</strong> {pdl ? `${pdl.first_name} ${pdl.last_name}` : ''}</div>
-                        <div><strong>Dorm No:</strong> {pdl ? pdl.dorm_number : ''}</div>
+                        <div><strong>Cell No:</strong> {pdl ? pdl.cell_number : ''}</div>
                       </div>
                       <div className="id-card-qr" style={{ backgroundColor: 'transparent', padding: '5px', objectFit: 'fill', position: 'relative', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <QRCodeCanvas
-                          value={`[visitor_id:${visitor.id}][Visitor: ${visitor.name}][Relationship: ${visitor.relationship}][Contact: ${visitor.contact_number}][PDL: ${pdl ? `${pdl.first_name} ${pdl.last_name}` : ''}][Dorm: ${pdl ? pdl.dorm_number : ''}]`}
+                          value={`[visitor_id:${visitor.id}][Visitor: ${visitor.name}][Relationship: ${visitor.relationship}][Contact: ${visitor.contact_number}][PDL: ${pdl ? `${pdl.first_name} ${pdl.last_name}` : ''}][Cell: ${pdl ? pdl.cell_number : ''}]`}
                           size={200}
                         />
                       </div>

@@ -15,6 +15,7 @@ const Logs = () => {
   const [filterType, setFilterType] = useState('all'); // 'all', 'year', 'month', 'day'
   const [filterValue, setFilterValue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [availableCells, setAvailableCells] = useState([]);
 
   useEffect(() => {
     const fetchVisitors = async () => {
@@ -29,7 +30,17 @@ const Logs = () => {
         setLoading(false);
       }
     };
+    const fetchAvailableCells = async () => {
+      try {
+        const response = await api.get('/api/cells/active');
+        setAvailableCells(response.data);
+      } catch (error) {
+        console.error('Failed to fetch cells:', error);
+      }
+    };
+
     fetchVisitors();
+    fetchAvailableCells();
 
     // Listen for visitorTimesUpdated event to refresh logs
     const handleVisitorTimesUpdated = () => {
@@ -142,7 +153,7 @@ const Logs = () => {
           (visitor.visitor_name && visitor.visitor_name.toLowerCase().includes(searchLower)) ||
           (visitor.pdl_name && visitor.pdl_name.toLowerCase().includes(searchLower)) ||
           (visitor.relationship && visitor.relationship.toLowerCase().includes(searchLower)) ||
-          (visitor.dorm && visitor.dorm.toLowerCase().includes(searchLower)) ||
+          (visitor.cell && visitor.cell.toLowerCase().includes(searchLower)) ||
           (visitor.contact_number && visitor.contact_number.toLowerCase().includes(searchLower))
         );
       });
@@ -212,13 +223,17 @@ const Logs = () => {
       // Add date heading row (just date string, no "Date:" prefix)
       ws_data.push([date]);
       // Add header row with Contact Number after Visitor's Name and Relationship after PDL's to be Visit Name
-      ws_data.push(["Visitor's Name", "Contact Number", "PDL Visited", "Relationship", "Dorm", "Time In", "Time Out"]);
+      ws_data.push(["Visitor's Name", "Contact Number", "PDL Visited", "Relationship", "Cell", "Time In", "Time Out"]);
 
       // Add data rows
       groupedByDate[date].forEach((v) => {
         const timeIn = v.time_in ? new Date(v.time_in).toLocaleTimeString() : '';
         const timeOut = v.time_out ? new Date(v.time_out).toLocaleTimeString() : '';
-        ws_data.push([capitalizeWords(v.visitor_name), v.contact_number, capitalizeWords(v.pdl_name), v.relationship, capitalizeWords(v.dorm), timeIn, timeOut]);
+        const cellDisplay = (() => {
+          const cell = availableCells.find(c => c.cell_number.toLowerCase() === v.cell.toLowerCase());
+          return cell && cell.cell_name ? `${cell.cell_name} - ${capitalizeWords(v.cell)}` : capitalizeWords(v.cell);
+        })();
+        ws_data.push([capitalizeWords(v.visitor_name), v.contact_number, capitalizeWords(v.pdl_name), v.relationship, cellDisplay, timeIn, timeOut]);
       });
 
       ws_data.push([]);
@@ -620,7 +635,7 @@ const Logs = () => {
               <th className="sortable-th" onClick={() => onHeaderClick('contact_number')}>Contact Number</th>
               <th className="sortable-th" onClick={() => onHeaderClick('pdl_name')}>PDL Visited</th>
               <th className="sortable-th" onClick={() => onHeaderClick('relationship')}>Relationship</th>
-              <th className="sortable-th" onClick={() => onHeaderClick('dorm')}>Dorm</th>
+              <th className="sortable-th" onClick={() => onHeaderClick('cell')}>Cell</th>
               <th className="sortable-th" onClick={() => onHeaderClick('time_in')}>Time In</th>
               <th className="sortable-th" onClick={() => onHeaderClick('time_out')}>Time Out</th>
               <th className="sortable-th" onClick={() => onHeaderClick('time_in')}>Date</th>
@@ -638,7 +653,12 @@ const Logs = () => {
                   <td>{v.contact_number}</td>
                   <td>{capitalizeWords(v.pdl_name)}</td>
                   <td>{v.relationship}</td>
-                  <td>{capitalizeWords(v.dorm)}</td>
+                  <td>
+                    {(() => {
+                      const cell = availableCells.find(c => c.cell_number.toLowerCase() === v.cell.toLowerCase());
+                      return cell && cell.cell_name ? `${cell.cell_name} - ${capitalizeWords(v.cell)}` : capitalizeWords(v.cell);
+                    })()}
+                  </td>
                   <td>{v.time_in ? formatTimeOnly(v.time_in) : ''}</td>
                   <td>{v.time_out ? formatTimeOnly(v.time_out) : ''}</td>
                   <td>{v.time_in ? formatDateTime(v.time_in).split(',')[0] : ''}</td>

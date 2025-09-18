@@ -14,11 +14,11 @@ const ScannedVisitor = {
     return results.length > 0 ? results[0] : null;
   },
 
-  findOpenScanByVisitorDetails: async (visitor_name, pdl_name, dorm) => {
-    console.log('findOpenScanByVisitorDetails called with:', visitor_name, pdl_name, dorm);
+  findOpenScanByVisitorDetails: async (visitor_name, pdl_name, cell) => {
+    console.log('findOpenScanByVisitorDetails called with:', visitor_name, pdl_name, cell);
     const [results] = await db.query(
-      `SELECT * FROM scanned_visitors WHERE visitor_name = ? AND pdl_name = ? AND dorm = ? AND time_out IS NULL ORDER BY scan_date DESC LIMIT 1`,
-      [visitor_name, pdl_name, dorm]
+      `SELECT * FROM scanned_visitors WHERE visitor_name = ? AND pdl_name = ? AND cell = ? AND time_out IS NULL ORDER BY scan_date DESC LIMIT 1`,
+      [visitor_name, pdl_name, cell]
     );
     console.log('findOpenScanByVisitorDetails results:', results);
     return results.length > 0 ? results[0] : null;
@@ -38,7 +38,7 @@ const ScannedVisitor = {
     const {
       visitor_name,
       pdl_name,
-      dorm,
+      cell,
       time_in,
       time_out,
       scan_date,
@@ -49,9 +49,9 @@ const ScannedVisitor = {
 
     const [result] = await db.query(
       `INSERT INTO scanned_visitors (
-        visitor_name, pdl_name, dorm, time_in, time_out, scan_date, relationship, contact_number, purpose
+        visitor_name, pdl_name, cell, time_in, time_out, scan_date, relationship, contact_number, purpose
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [visitor_name, pdl_name, dorm, time_in, time_out, scan_date, relationship, contact_number, purpose]
+      [visitor_name, pdl_name, cell, time_in, time_out, scan_date, relationship, contact_number, purpose]
     );
     return result;
   },

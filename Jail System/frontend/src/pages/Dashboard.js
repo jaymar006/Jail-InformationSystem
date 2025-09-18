@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from './Header';
 import QRCodeScanner from '../components/QRCodeScanner';
 import api from '../services/api';
@@ -6,8 +6,7 @@ import './Dashboard.css';
 
 const Dashboard = () => {
   const [visitors, setVisitors] = useState([]);
-  const [scanError, setScanError] = useState(null);
-  const [resetTrigger, setResetTrigger] = useState(0);
+  const [resetTrigger] = useState(0);
 
   const [selectedVisitorId, setSelectedVisitorId] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -21,6 +20,9 @@ const Dashboard = () => {
   const [selectedDeleteIds, setSelectedDeleteIds] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
+  const [availableCells, setAvailableCells] = useState([]);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduledCells, setScheduledCells] = useState(new Set());
 
   const formatTime = (isoString) => {
     if (!isoString) return '';
@@ -32,12 +34,6 @@ const Dashboard = () => {
     });
   };
 
-  const addHours = (isoString, hours) => {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    date.setHours(date.getHours() + hours);
-    return date.toISOString();
-  };
 
   const toInputTimeHHMMSS = (isoString) => {
     if (!isoString) return '';
@@ -62,27 +58,52 @@ const Dashboard = () => {
 
   const currentDateString = getDateString(new Date().toISOString());
 
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => {
       setToast({ show: false, message: '', type: '' });
     }, 3000);
-  };
+  }, []);
 
-  const fetchVisitors = async () => {
+  const fetchVisitors = useCallback(async () => {
     try {
       const res = await api.get('/api/scanned_visitors');
       setVisitors(res.data);
-      setScanError(null);
     } catch (error) {
       console.error('Failed to fetch visitors:', error);
-      setScanError('Failed to fetch visitors data');
+      showToast('Failed to fetch visitors data', 'error');
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     fetchVisitors();
-  }, []);
+    fetchAvailableCells();
+  }, [fetchVisitors]);
+
+  const fetchAvailableCells = async () => {
+    try {
+      const response = await api.get('/api/cells/active');
+      setAvailableCells(response.data);
+    } catch (error) {
+      console.error('Failed to fetch cells:', error);
+    }
+  };
+
+  const handleCellScheduleToggle = (cellNumber) => {
+    setScheduledCells(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(cellNumber)) {
+        newSet.delete(cellNumber);
+      } else {
+        newSet.add(cellNumber);
+      }
+      return newSet;
+    });
+  };
+
+  const isCellScheduled = (cellNumber) => {
+    return scheduledCells.has(cellNumber);
+  };
 
   const handleScan = async (data) => {
     if (!data) return;
@@ -91,23 +112,29 @@ const Dashboard = () => {
     const regex = /\[(.*?)\]/g;
     const matches = [...data.matchAll(regex)].map(match => match[1]);
 
-    let visitorName = '', pdlName = '', dorm = '', relationship = '', contactNumber = '';
+    let visitorName = '', pdlName = '', cell = '', relationship = '', contactNumber = '';
 
     matches.forEach(part => {
       if (part.startsWith('Visitor:')) visitorName = part.replace('Visitor:', '').trim();
       else if (part.startsWith('PDL:')) pdlName = part.replace('PDL:', '').trim();
-      else if (part.startsWith('Dorm:')) dorm = part.replace('Dorm:', '').trim();
+      else if (part.startsWith('Cell:')) cell = part.replace('Cell:', '').trim();
       else if (part.startsWith('Relationship:')) relationship = part.replace('Relationship:', '').trim();
       else if (part.startsWith('Contact:')) contactNumber = part.replace('Contact:', '').trim();
     });
 
-    if (!visitorName || !pdlName || !dorm) {
-      setScanError('Invalid QR code format');
+    if (!visitorName || !pdlName || !cell) {
+      showToast('Invalid QR code format', 'error');
+      return;
+    }
+
+    // Check if the cell is scheduled for visits
+    if (!isCellScheduled(cell)) {
+      showToast(`Cell ${cell} is not scheduled for visits today. Please contact the administrator.`, 'error');
       return;
     }
 
     // Debounce same QR contents for a short window
-    const sig = `${visitorName}|${pdlName}|${dorm}`;
+    const sig = `${visitorName}|${pdlName}|${cell}`;
     const nowMs = Date.now();
     if (lastScanSig === sig && nowMs - lastScanAt < 5000) {
       return; // ignore duplicate immediately after previous scan
@@ -123,7 +150,7 @@ const Dashboard = () => {
       const preflight = await api.post('/api/scanned_visitors', {
         visitor_name: visitorName,
         pdl_name: pdlName,
-        dorm,
+        cell,
         relationship,
         contact_number: contactNumber,
         only_check: true
@@ -135,7 +162,7 @@ const Dashboard = () => {
         const scanData = {
           visitor_name: visitorName,
           pdl_name: pdlName,
-          dorm,
+          cell,
           relationship,
           contact_number: contactNumber
         };
@@ -153,14 +180,14 @@ const Dashboard = () => {
       setPendingScanData({
         visitor_name: visitorName,
         pdl_name: pdlName,
-        dorm,
+        cell,
         relationship,
         contact_number: contactNumber
       });
       setShowPurposeModal(true);
     } catch (e) {
       console.error('Preflight scan error:', e);
-      setScanError('Scan preflight failed');
+      showToast('Scan preflight failed', 'error');
       setTimeout(() => setScanLocked(false), 800);
     }
   };
@@ -177,15 +204,13 @@ const Dashboard = () => {
         purpose
       });
 
-      setScanError(null);
-
       const action = response?.data?.action;
       if (action === 'time_out') {
         showToast('Successful time out!', 'success');
       } else if (action === 'time_in') {
         showToast('Successful time in!', 'success');
       } else if (action === 'already_timed_out') {
-        setScanError('This visitor has already timed out.');
+        showToast('This visitor has already timed out.', 'error');
       } else {
         showToast('Scan recorded!', 'success');
       }
@@ -193,7 +218,7 @@ const Dashboard = () => {
       fetchVisitors();
     } catch (error) {
       console.error('Error adding scanned visitor:', error);
-      setScanError('Error adding scanned visitor');
+      showToast('Error adding scanned visitor', 'error');
     }
 
     setPendingScanData(null);
@@ -213,17 +238,6 @@ const Dashboard = () => {
     setShowEditModal(true);
   };
 
-  const openEditModal = () => {
-    const visitor = visitors.find(v => v.id === selectedVisitorId);
-    if (!visitor) {
-      alert('Please select a valid visitor.');
-      return;
-    }
-
-    setEditTimeIn(visitor.time_in ? toInputTimeHHMMSS(visitor.time_in) : '');
-    setEditTimeOut(visitor.time_out ? toInputTimeHHMMSS(visitor.time_out) : '');
-    setShowEditModal(true);
-  };
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
@@ -352,10 +366,37 @@ const Dashboard = () => {
       <main className="dashboard-main">
         <section style={{ textAlign: 'center' }}>
           <h2 style={{ margin: '0 0 16px 0' }}>QR Code Scanner</h2>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <QRCodeScanner onScan={handleScan} onError={() => setScanError('QR Scan error')} resetTrigger={resetTrigger} />
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
+            <button 
+              className="common-button" 
+              onClick={() => setShowScheduleModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              Schedule
+            </button>
           </div>
-          {scanError && <p className="error-message">{scanError}</p>}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <QRCodeScanner onScan={handleScan} onError={() => showToast('QR Scan error', 'error')} resetTrigger={resetTrigger} />
+          </div>
         </section>
 
         <section>
@@ -385,7 +426,7 @@ const Dashboard = () => {
                   </th>
                   <th>Visitor's Name</th>
                   <th>PDL's to be Visited</th>
-                  <th>Dorm</th>
+                  <th>Cell</th>
                   <th>Purpose</th>
                   <th>Time In</th>
                   <th>Time Out</th>
@@ -414,7 +455,12 @@ const Dashboard = () => {
                       </td>
                       <td>{capitalizeWords(v.visitor_name)}</td>
                       <td>{capitalizeWords(v.pdl_name)}</td>
-                      <td>{capitalizeWords(v.dorm)}</td>
+                      <td>
+                        {(() => {
+                          const cell = availableCells.find(c => c.cell_number.toLowerCase() === v.cell.toLowerCase());
+                          return cell && cell.cell_name ? `${cell.cell_name} - ${capitalizeWords(v.cell)}` : capitalizeWords(v.cell);
+                        })()}
+                      </td>
                       <td>{v.purpose ? (v.purpose.charAt(0).toUpperCase() + v.purpose.slice(1)) : ''}</td>
                       <td>{formatTime(v.time_in)}</td>
                       <td>{v.time_out ? formatTime(v.time_out) : ''}</td>
@@ -472,7 +518,7 @@ const Dashboard = () => {
                   <div style={{ fontSize: '14px', opacity: '0.9' }}>
                     <p style={{ margin: '4px 0' }}><strong>Visitor:</strong> {capitalizeWords(pendingScanData?.visitor_name)}</p>
                     <p style={{ margin: '4px 0' }}><strong>PDL:</strong> {capitalizeWords(pendingScanData?.pdl_name)}</p>
-                    <p style={{ margin: '4px 0' }}><strong>Dorm:</strong> {capitalizeWords(pendingScanData?.dorm)}</p>
+                    <p style={{ margin: '4px 0' }}><strong>Cell:</strong> {capitalizeWords(pendingScanData?.cell)}</p>
                   </div>
                 </div>
               </div>
@@ -633,6 +679,170 @@ const Dashboard = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Schedule Modal */}
+        {showScheduleModal && (
+          <div className="common-modal">
+            <div className="common-modal-content" style={{ maxWidth: '500px' }}>
+              <h3 style={{ textAlign: 'center', marginBottom: '24px', fontSize: '24px', fontWeight: '600', color: '#111827' }}>
+                Schedule Cell Visits
+              </h3>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+                  Select which cells are available for visits today. Only visitors to scheduled cells will be allowed to scan in.
+                </p>
+                
+                <div style={{ 
+                  background: '#f8fafc', 
+                  padding: '16px', 
+                  borderRadius: '8px',
+                  border: '1px solid #e2e8f0',
+                  maxHeight: '300px',
+                  overflowY: 'auto'
+                }}>
+                  {availableCells.length === 0 ? (
+                    <p style={{ textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>
+                      No active cells found. Please add cells in Settings first.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      {availableCells.map((cell) => (
+                        <label 
+                          key={cell.id}
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '12px',
+                            padding: '12px',
+                            background: isCellScheduled(cell.cell_number) ? '#ecfdf5' : '#fff',
+                            border: isCellScheduled(cell.cell_number) ? '2px solid #10b981' : '2px solid #e5e7eb',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isCellScheduled(cell.cell_number)}
+                            onChange={() => handleCellScheduleToggle(cell.cell_number)}
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              cursor: 'pointer'
+                            }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: '600', color: '#111827' }}>
+                              {cell.cell_name ? `${cell.cell_name} - ${cell.cell_number}` : cell.cell_number}
+                            </div>
+                            {cell.cell_name && (
+                              <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                Cell Number: {cell.cell_number}
+                              </div>
+                            )}
+                            <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                              Capacity: {cell.capacity} | Status: {cell.status}
+                            </div>
+                          </div>
+                          {isCellScheduled(cell.cell_number) && (
+                            <div style={{ 
+                              background: '#10b981', 
+                              color: 'white', 
+                              padding: '4px 8px', 
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}>
+                              Scheduled
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                padding: '16px 0',
+                borderTop: '1px solid #e5e7eb'
+              }}>
+                <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                  {scheduledCells.size} of {availableCells.length} cells scheduled
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setScheduledCells(new Set());
+                    }}
+                    style={{
+                      background: '#ef4444',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Clear All
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setScheduledCells(new Set(availableCells.map(cell => cell.cell_number)));
+                    }}
+                    style={{
+                      background: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    Select All
+                  </button>
+                </div>
+              </div>
+
+              <div className="common-modal-buttons" style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                gap: '12px',
+                marginTop: '20px'
+              }}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowScheduleModal(false)}
+                  style={{
+                    background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         )}

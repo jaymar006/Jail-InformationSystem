@@ -27,7 +27,7 @@ router.get('/:id', async (req, res) => {
 // POST new PDL
 router.post('/', async (req, res) => {
   const {
-    first_name, last_name, middle_name, dorm_number,
+    first_name, last_name, middle_name, cell_number,
     criminal_case_no, offense_charge, court_branch,
     arrest_date, commitment_date, first_time_offender
   } = req.body;
@@ -35,13 +35,13 @@ router.post('/', async (req, res) => {
   try {
     const [result] = await db.query(
       `INSERT INTO pdls 
-        (first_name, last_name, middle_name, dorm_number, 
+        (first_name, last_name, middle_name, cell_number, 
          criminal_case_no, offense_charge, court_branch, 
          arrest_date, commitment_date, first_time_offender)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 
       [
-        first_name, last_name, middle_name, dorm_number,
+        first_name, last_name, middle_name, cell_number,
         criminal_case_no, offense_charge, court_branch,
         arrest_date, commitment_date, first_time_offender
       ]
@@ -57,7 +57,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const {
-    first_name, last_name, middle_name, dorm_number,
+    first_name, last_name, middle_name, cell_number,
     criminal_case_no, offense_charge, court_branch,
     arrest_date, commitment_date, first_time_offender
   } = req.body;
@@ -65,12 +65,12 @@ router.put('/:id', async (req, res) => {
   try {
     await db.query(
       `UPDATE pdls SET 
-         first_name = ?, last_name = ?, middle_name = ?, dorm_number = ?, 
+         first_name = ?, last_name = ?, middle_name = ?, cell_number = ?, 
          criminal_case_no = ?, offense_charge = ?, court_branch = ?, 
          arrest_date = ?, commitment_date = ?, first_time_offender = ?
        WHERE id = ?`,
       [
-        first_name, last_name, middle_name, dorm_number,
+        first_name, last_name, middle_name, cell_number,
         criminal_case_no, offense_charge, court_branch,
         arrest_date, commitment_date, first_time_offender,
         id
