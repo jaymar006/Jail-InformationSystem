@@ -96,3 +96,54 @@ exports.resetPasswordSecurity = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+exports.updateUsername = async (req, res) => {
+  const { newUsername } = req.body;
+  const userId = req.user.id;
+
+  try {
+    // Check if the new username already exists
+    const existingUser = await userModel.findUserByUsername(newUsername);
+    if (existingUser) {
+      return res.status(400).json({ message: 'Username already exists' });
+    }
+
+    // Update the username
+    const updated = await userModel.updateUsername(userId, newUsername);
+    
+    if (updated) {
+      res.json({ message: 'Username updated successfully', username: newUsername });
+    } else {
+      res.status(500).json({ message: 'Failed to update username' });
+    }
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const userId = req.user.id;
+
+  try {
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    // Change the password
+    const result = await userModel.changePassword(userId, currentPassword, newPassword);
+    
+    if (result.success) {
+      res.json({ message: 'Password changed successfully' });
+    } else {
+      res.status(400).json({ message: result.error || 'Failed to change password' });
+    }
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};

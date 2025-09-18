@@ -17,6 +17,7 @@ const Modal = ({ children, onClose }) => {
 const Settings = () => {
   const [modalOpen, setModalOpen] = useState(null); // 'username', 'password', 'cell', 'editCell' or null
   const [newUsername, setNewUsername] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(true);
@@ -41,20 +42,14 @@ const Settings = () => {
           setLoading(false);
           return;
         }
-        const response = await fetch('/auth/me', {
+        const response = await axios.get('/auth/me', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         });
         console.log('Response status:', response.status);
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Username data:', data);
-          setUsername(data.username);
-        } else {
-          console.log('Failed to fetch username');
-          setUsername('');
-        }
+        console.log('Username data:', response.data);
+        setUsername(response.data.username);
       } catch (error) {
         console.error('Error fetching username:', error);
         setUsername('');
@@ -83,6 +78,7 @@ const Settings = () => {
   const closeModal = () => {
     setModalOpen(null);
     setNewUsername('');
+    setCurrentPassword('');
     setNewPassword('');
     setCellForm({
       cell_number: '',
@@ -93,16 +89,73 @@ const Settings = () => {
     setEditingCell(null);
   };
 
-  const handleUsernameSubmit = (e) => {
+  const handleUsernameSubmit = async (e) => {
     e.preventDefault();
-    alert(`Username changed to: ${newUsername}`);
-    closeModal();
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('You must be logged in to change your username');
+        return;
+      }
+
+      const response = await axios.put('/auth/username', 
+        { newUsername },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data.message === 'Username updated successfully') {
+        setUsername(newUsername);
+        alert('Username updated successfully!');
+        closeModal();
+      }
+    } catch (error) {
+      console.error('Error updating username:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to update username';
+      alert(`Error: ${errorMessage}`);
+    }
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    alert('Password changed.');
-    closeModal();
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('You must be logged in to change your password');
+        return;
+      }
+
+      if (!currentPassword || !newPassword) {
+        alert('Please fill in both current and new password fields');
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        alert('New password must be at least 6 characters long');
+        return;
+      }
+
+      const response = await axios.put('/auth/password', 
+        { currentPassword, newPassword },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data.message === 'Password changed successfully') {
+        alert('Password changed successfully!');
+        closeModal();
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to change password';
+      alert(`Error: ${errorMessage}`);
+    }
   };
 
   // Cell management functions
@@ -195,13 +248,22 @@ const Settings = () => {
           <Modal onClose={closeModal}>
             <h3>Change Password</h3>
             <form onSubmit={handlePasswordSubmit} className="settings-form">
-              <label htmlFor="password">New Password:</label>
+              <label htmlFor="currentPassword">Current Password:</label>
               <input
                 type="password"
-                id="password"
+                id="currentPassword"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+              <label htmlFor="newPassword">New Password:</label>
+              <input
+                type="password"
+                id="newPassword"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
+                minLength="6"
               />
               <button type="submit">Change Password</button>
             </form>
@@ -213,6 +275,7 @@ const Settings = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3>Manage Cells</h3>
               <button 
+                className="add-cell-btn"
                 onClick={() => {
                   setEditingCell(null);
                   setCellForm({
@@ -223,75 +286,48 @@ const Settings = () => {
                   });
                   setModalOpen('editCell');
                 }}
-                style={{
-                  background: '#4b5563',
-                  color: 'white',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
               >
-                Add New Cell
+                + Add New Cell
               </button>
             </div>
             
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+              <table className="cell-management-table">
                 <thead>
-                  <tr style={{ backgroundColor: '#f5f5f5' }}>
-                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Cell Number</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Cell Name</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Capacity</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Status</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Actions</th>
+                  <tr>
+                    <th>Cell Number</th>
+                    <th>Cell Name</th>
+                    <th>Capacity</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cells.map((cell) => (
                     <tr key={cell.id}>
-                      <td style={{ padding: '8px', border: '1px solid #ddd' }}>{cell.cell_number}</td>
-                      <td style={{ padding: '8px', border: '1px solid #ddd' }}>{cell.cell_name || '-'}</td>
-                      <td style={{ padding: '8px', border: '1px solid #ddd' }}>{cell.capacity}</td>
-                      <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                        <span style={{ 
-                          padding: '2px 8px', 
-                          borderRadius: '4px', 
-                          fontSize: '12px',
-                          backgroundColor: cell.status === 'active' ? '#d4edda' : '#f8d7da',
-                          color: cell.status === 'active' ? '#155724' : '#721c24'
-                        }}>
+                      <td>{cell.cell_number}</td>
+                      <td>{cell.cell_name || '-'}</td>
+                      <td>{cell.capacity}</td>
+                      <td>
+                        <span className={`status-badge ${cell.status}`}>
                           {cell.status}
                         </span>
                       </td>
-                      <td style={{ padding: '8px', border: '1px solid #ddd' }}>
-                        <button 
-                          onClick={() => handleEditCell(cell)}
-                          style={{
-                            background: '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            marginRight: '4px'
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteCell(cell.id)}
-                          style={{
-                            background: '#dc3545',
-                            color: 'white',
-                            border: 'none',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Delete
-                        </button>
+                      <td>
+                        <div className="table-action-buttons">
+                          <button 
+                            className="edit-btn"
+                            onClick={() => handleEditCell(cell)}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            className="delete-btn"
+                            onClick={() => handleDeleteCell(cell.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -345,11 +381,38 @@ const Settings = () => {
                 <option value="maintenance">Maintenance</option>
               </select>
               
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
                 <button type="submit" style={{ flex: 1 }}>
                   {editingCell ? 'Update Cell' : 'Add Cell'}
                 </button>
-                <button type="button" onClick={closeModal} style={{ flex: 1, background: '#6c757d' }}>
+                <button 
+                  type="button" 
+                  onClick={closeModal} 
+                  style={{ 
+                    flex: 1, 
+                    background: 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '12px 24px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = 'linear-gradient(135deg, #4b5563 0%, #374151 100%)';
+                    e.target.style.transform = 'translateY(-1px)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(75, 85, 99, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)';
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                >
                   Cancel
                 </button>
               </div>

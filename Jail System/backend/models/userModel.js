@@ -23,6 +23,31 @@ const updateUserPassword = async (username, newPassword) => {
   return result.affectedRows > 0;
 };
 
+const updateUsername = async (userId, newUsername) => {
+  const [result] = await db.query('UPDATE users SET username = ? WHERE id = ?', [newUsername, userId]);
+  return result.affectedRows > 0;
+};
+
+const changePassword = async (userId, currentPassword, newPassword) => {
+  // First verify the current password
+  const user = await findUserById(userId);
+  if (!user) {
+    return { success: false, error: 'User not found' };
+  }
+  
+  const bcrypt = require('bcrypt');
+  const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+  if (!isCurrentPasswordValid) {
+    return { success: false, error: 'Current password is incorrect' };
+  }
+  
+  // Hash the new password and update
+  const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+  const [result] = await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedNewPassword, userId]);
+  
+  return { success: result.affectedRows > 0 };
+};
+
 const bcrypt = require('bcrypt');
 
 const verifySecurityAnswer = async (username, securityQuestion, securityAnswer) => {
@@ -47,5 +72,7 @@ module.exports = {
   createUser,
   findUserById,
   updateUserPassword,
+  updateUsername,
+  changePassword,
   verifySecurityAnswer,
 };
