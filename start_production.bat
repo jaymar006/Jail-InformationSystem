@@ -2,6 +2,10 @@
 echo Starting Jail Information System in Production Mode...
 echo.
 
+REM Setup environment file if it doesn't exist
+echo Setting up environment...
+node setup_env.js
+
 REM Install dependencies if needed
 echo Installing dependencies...
 call npm run install-all

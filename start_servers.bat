@@ -4,6 +4,10 @@ echo.
 echo For production deployment (using built files), use: start_production.bat
 echo.
 
+REM Setup environment file if it doesn't exist
+echo Setting up environment...
+node setup_env.js
+
 REM Start backend server in a new window
 start "Backend Server" cmd /k "cd /d %~dp0backend && npm start"
 

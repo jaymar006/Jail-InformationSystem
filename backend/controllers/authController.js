@@ -1,13 +1,18 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const userModel = require('../models/userModel');
 
-const JWT_SECRET = process.env.JWT_SECRET;
+let JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
-  console.error('❌ JWT_SECRET environment variable is required!');
-  console.error('Please set JWT_SECRET in your .env file');
-  process.exit(1);
+  console.warn('⚠️  JWT_SECRET not found in environment variables');
+  console.warn('🔧 Generating a temporary JWT secret...');
+  console.warn('💡 For production, please set JWT_SECRET in your .env file');
+  
+  // Generate a temporary secret (this will change on each restart)
+  JWT_SECRET = crypto.randomBytes(64).toString('hex');
+  console.warn('🔐 Temporary JWT secret generated (will change on restart)');
 }
 
 exports.login = async (req, res) => {
