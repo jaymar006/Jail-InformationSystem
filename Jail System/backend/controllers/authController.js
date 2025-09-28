@@ -2,7 +2,13 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const userModel = require('../models/userModel');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('❌ JWT_SECRET environment variable is required!');
+  console.error('Please set JWT_SECRET in your .env file');
+  process.exit(1);
+}
 
 exports.login = async (req, res) => {
   const { username, password } = req.body;
