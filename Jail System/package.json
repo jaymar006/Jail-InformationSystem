@@ -1,9 +1,25 @@
 {
-  "dependencies": {
-    "html-to-image": "^1.11.13",
-    "html5-qrcode": "^2.3.8",
-    "mysql2": "^3.14.1",
-    "react-qr-reader": "^3.0.0-beta-1",
-    "xlsx": "^0.18.5"
-  }
+  "name": "jail-information-system",
+  "version": "1.0.0",
+  "description": "Jail Information System - Backend API",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "install-backend": "cd backend && npm install",
+    "build": "cd backend && npm install"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "jail",
+    "information",
+    "system",
+    "api",
+    "nodejs",
+    "express"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
 }
