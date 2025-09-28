@@ -6,7 +6,11 @@
   "scripts": {
     "start": "cd backend && npm start",
     "install-backend": "cd backend && npm install",
-    "build": "cd backend && npm install"
+    "install-frontend": "cd frontend && npm install",
+    "install-all": "npm run install-backend && npm run install-frontend",
+    "build": "npm run install-all && cd frontend && npm run build",
+    "serve": "cd frontend && npx serve -s build -l 3000",
+    "start-prod": "npm run build && npm run serve"
   },
   "engines": {
     "node": ">=16.0.0",
