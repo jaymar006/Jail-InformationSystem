@@ -74,6 +74,33 @@ const ScannedVisitor = {
     );
     console.log('delete result:', result);
     return result;
+  },
+
+  deleteAll: async () => {
+    console.log('deleteAll called');
+    const [result] = await db.query('DELETE FROM scanned_visitors');
+    console.log('deleteAll result:', result);
+    return result;
+  },
+
+  deleteByDateRange: async (startDate, endDate) => {
+    console.log('deleteByDateRange called with:', startDate, endDate);
+    const [result] = await db.query(
+      `DELETE FROM scanned_visitors WHERE scan_date >= ? AND scan_date <= ?`,
+      [startDate, endDate]
+    );
+    console.log('deleteByDateRange result:', result);
+    return result;
+  },
+
+  deleteByDate: async (date) => {
+    console.log('deleteByDate called with:', date);
+    const [result] = await db.query(
+      `DELETE FROM scanned_visitors WHERE DATE(scan_date) = ?`,
+      [date]
+    );
+    console.log('deleteByDate result:', result);
+    return result;
   }
 };
 

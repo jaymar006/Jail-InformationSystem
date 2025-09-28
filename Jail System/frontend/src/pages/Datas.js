@@ -119,7 +119,19 @@ const Datas = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [editForm, setEditForm] = useState({});
+  const [duplicatePdls, setDuplicatePdls] = useState([]);
+  const [currentVisitorData, setCurrentVisitorData] = useState(null);
+  const [pendingVisitorImports, setPendingVisitorImports] = useState([]);
+  const [showImportSummaryModal, setShowImportSummaryModal] = useState(false);
+  const [importSummary, setImportSummary] = useState({ success: [], skipped: [], errors: [] });
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [isImportingPdls, setIsImportingPdls] = useState(false);
+  const [pdlImportProgress, setPdlImportProgress] = useState({ current: 0, total: 0 });
+  const [showPdlImportSummaryModal, setShowPdlImportSummaryModal] = useState(false);
+  const [pdlImportSummary, setPdlImportSummary] = useState({ success: [], skipped: [], errors: [] });
   const [addForm, setAddForm] = useState({
     last_name: '',
     first_name: '',
@@ -220,7 +232,7 @@ const Datas = () => {
               'Age': visitor.age || '',
               'Address': visitor.address || '',
               'Valid ID': visitor.valid_id || '',
-              'Date of Application': formatDateOnly(visitor.date_of_application),
+              'Date of Application': toYMD(visitor.date_of_application),
               'Contact Number': visitor.contact_number || '',
             });
           });
@@ -474,10 +486,11 @@ const Datas = () => {
   // Download template for PDL-only import
   const downloadPdlImportTemplate = () => {
     const headers = [
-      'Last Name',
-      'First Name',
-      'Middle Name',
-      'Cell Number',
+      'Name', // Combined format: "Last Name, First Name Middle Name"
+      'Last Name', // Separate format (optional if Name is used)
+      'First Name', // Separate format (optional if Name is used)
+      'Middle Name', // Separate format (optional if Name is used)
+      'Cell Number', // Note: "Dorm Number" is also accepted
       'Criminal Case No.',
       'Offense Charge',
       'Court Branch',
@@ -486,7 +499,7 @@ const Datas = () => {
       'First Time Offender',
     ];
     const sample = [
-      ['Dela Cruz', 'Juan Denver', 'Dinglasan', '6', 'CC-1234', 'Theft', 'Branch 5', '01/15/2024', '02/01/2024', 'No']
+      ['Talisik, Angelo Freo', '', '', '', '6', 'CC-1234', 'Theft', 'Branch 5', '01/15/2024', '02/01/2024', 'No']
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
     ws['!cols'] = [
@@ -500,14 +513,14 @@ const Datas = () => {
 
   // Download template for PDL with Visitors import (PDL fields + Visitor fields)
   const downloadPdlWithVisitorsTemplate = () => {
-    const headers = ['PDL Last Name', 'PDL First Name', 'PDL Middle Name', 'Visitor Name', 'Relationship', 'Age', 'Address', 'Valid ID', 'Date of Application', 'Contact Number'];
+    const headers = ['PDL Name', 'PDL Last Name', 'PDL First Name', 'PDL Middle Name', 'Visitor Name', 'Relationship', 'Age', 'Address', 'Valid ID', 'Date of Application', 'Contact Number'];
     const sample = [
-      ['Dela Cruz', 'Juan Denver', 'Dinglasan', 'Alice Johnson', 'Mother', 48, '123 Main St, Sample City', 'ID-AJ-001', '01/10/2025', '555-1001'],
-      ['', '', '', 'Bob Williams', 'Brother', 34, '45 Oak Ave, Sample City', 'ID-BW-002', '01/11/2025', '555-1002']
+      ['Talisik, Angelo Freo', '', '', '', 'Alice Johnson', 'Mother', 48, '123 Main St, Sample City', 'ID-AJ-001', '01/10/2025', '555-1001'],
+      ['', '', '', '', 'Bob Williams', 'Brother', 34, '45 Oak Ave, Sample City', 'ID-BW-002', '01/11/2025', '555-1002']
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
     ws['!cols'] = [
-      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 28 }, { wch: 16 }, { wch: 18 }, { wch: 16 }
+      { wch: 25 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 15 }, { wch: 8 }, { wch: 28 }, { wch: 16 }, { wch: 18 }, { wch: 16 }
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'PDL+Visitors Template');
@@ -519,6 +532,9 @@ const Datas = () => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
+    setIsImportingPdls(true);
+    setPdlImportProgress({ current: 0, total: 0 });
+
     try {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array' });
@@ -528,20 +544,63 @@ const Datas = () => {
 
       if (!rows.length) {
         alert('No rows found in the uploaded file.');
+        setIsImportingPdls(false);
         return;
       }
 
+      // Set total count for progress tracking
+      setPdlImportProgress({ current: 0, total: rows.length });
+
       let success = 0;
       let failed = 0;
+      let skipped = 0;
       const errors = [];
+      const importResults = { success: [], skipped: [], errors: [] };
 
       for (const [index, row] of rows.entries()) {
-        // Map headers to fields
+        // Update progress
+        setPdlImportProgress({ current: index + 1, total: rows.length });
+        
+        // Map headers to fields - handle both "Cell Number" and "Dorm Number"
+        const cellNumber = row['Cell Number'] || row['Dorm Number'] || '';
+        
+        // Handle combined name format: "Last Name, First Name Middle Name"
+        let lastName = '';
+        let firstName = '';
+        let middleName = '';
+        
+        const combinedName = String(row['Name'] || '').trim();
+        const separateLastName = String(row['Last Name'] || '').trim();
+        const separateFirstName = String(row['First Name'] || '').trim();
+        const separateMiddleName = String(row['Middle Name'] || '').trim();
+        
+        if (combinedName) {
+          // Parse combined format: "Talisik, Angelo Freo"
+          const parts = combinedName.split(',');
+          if (parts.length === 2) {
+            lastName = capitalizeWords(parts[0].trim());
+            const nameParts = parts[1].trim().split(' ');
+            if (nameParts.length >= 1) {
+              firstName = capitalizeWords(nameParts[0]);
+              if (nameParts.length > 1) {
+                middleName = capitalizeWords(nameParts.slice(1).join(' '));
+              }
+            }
+          }
+        }
+        
+        // If combined name parsing failed or no combined name, use separate fields
+        if (!lastName || !firstName) {
+          lastName = capitalizeWords(separateLastName);
+          firstName = capitalizeWords(separateFirstName);
+          middleName = capitalizeWords(separateMiddleName);
+        }
+        
         const payload = {
-          last_name: capitalizeWords(String(row['Last Name'] || '').trim()),
-          first_name: capitalizeWords(String(row['First Name'] || '').trim()),
-          middle_name: capitalizeWords(String(row['Middle Name'] || '').trim()),
-          cell_number: String(row['Cell Number'] || '').trim(),
+          last_name: lastName,
+          first_name: firstName,
+          middle_name: middleName,
+          cell_number: String(cellNumber).trim(),
           criminal_case_no: String(row['Criminal Case No.'] || '').trim(),
           offense_charge: String(row['Offense Charge'] || '').trim(),
           court_branch: String(row['Court Branch'] || '').trim(),
@@ -550,36 +609,226 @@ const Datas = () => {
           first_time_offender: String(row['First Time Offender'] || 'No').toLowerCase().startsWith('y') ? 1 : 0,
         };
 
+        // Debug logging
+        console.log(`Row ${index + 2}:`, {
+          originalRow: row,
+          combinedName,
+          separateLastName,
+          separateFirstName,
+          parsedPayload: payload
+        });
+
         // Basic validation
         if (!payload.last_name || !payload.first_name || !payload.cell_number) {
           failed += 1;
-          errors.push(`Row ${index + 2}: Missing required fields (Last Name, First Name, Cell Number)`);
+          errors.push(`Row ${index + 2}: Missing required fields (Name or Last Name/First Name, Cell Number/Dorm Number)`);
           continue;
         }
 
-        try {
-          await axios.post('/pdls', payload);
-          success += 1;
-        } catch (err) {
-          failed += 1;
-          errors.push(`Row ${index + 2}: ${err.response?.data?.error || err.message}`);
+        // Check if PDL already exists
+        const existingPdl = pdls.find(pdl => 
+          pdl.last_name.toLowerCase() === payload.last_name.toLowerCase() &&
+          pdl.first_name.toLowerCase() === payload.first_name.toLowerCase() &&
+          (pdl.middle_name || '').toLowerCase() === (payload.middle_name || '').toLowerCase()
+        );
+
+        if (existingPdl) {
+          // PDL already exists, skip it
+          skipped += 1;
+          importResults.skipped.push({
+            pdl: `${payload.last_name}, ${payload.first_name} ${payload.middle_name}`,
+            reason: 'already_exists'
+          });
+          console.log(`Skipped duplicate PDL for row ${index + 2}: ${payload.last_name}, ${payload.first_name} ${payload.middle_name}`);
+        } else {
+          try {
+            await axios.post('/pdls', payload);
+            success += 1;
+            importResults.success.push({
+              pdl: `${payload.last_name}, ${payload.first_name} ${payload.middle_name}`
+            });
+          } catch (err) {
+            failed += 1;
+            const errorMessage = err.response?.data?.error || err.message;
+            errors.push(`Row ${index + 2}: ${errorMessage}`);
+            importResults.errors.push({
+              pdl: `${payload.last_name}, ${payload.first_name} ${payload.middle_name}`,
+              error: errorMessage
+            });
+          }
         }
       }
 
       await fetchPdls();
 
-      let message = `Import finished. Success: ${success}, Failed: ${failed}.`;
-      if (errors.length) {
-        message += `\n\nErrors:\n` + errors.slice(0, 10).join('\n');
-        if (errors.length > 10) message += `\n...and ${errors.length - 10} more.`;
-      }
-      alert(message);
+      // Set import summary and show modal
+      setPdlImportSummary(importResults);
+      setShowPdlImportSummaryModal(true);
     } catch (err) {
       console.error('Failed to import PDLs:', err);
       alert('Failed to import PDLs. Make sure the file follows the template.');
     } finally {
+      setIsImportingPdls(false);
+      setPdlImportProgress({ current: 0, total: 0 });
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handle duplicate PDL selection for visitor import
+  const handleDuplicatePdlSelection = async (selectedPdlId) => {
+    try {
+      // Find the selected PDL to get its details
+      const selectedPdl = duplicatePdls.find(pdl => pdl.id === selectedPdlId);
+      
+      // Check if visitor already exists in this PDL
+      const existingVisitorsRes = await axios.get(`/api/pdls/${selectedPdlId}/visitors`);
+      const existingVisitors = existingVisitorsRes.data || [];
+      
+      const visitorExists = existingVisitors.some(existingVisitor => 
+        existingVisitor.name.toLowerCase() === currentVisitorData.name.toLowerCase()
+      );
+      
+      if (visitorExists) {
+        console.log(`Skipped duplicate visitor: ${currentVisitorData.name}`);
+        const result = { type: 'skipped', reason: 'already_exists', visitor: currentVisitorData.name, pdl: `${selectedPdl.last_name}, ${selectedPdl.first_name} ${selectedPdl.middle_name}` };
+        // Process next pending import if any
+        if (pendingVisitorImports.length > 0) {
+          const nextImport = pendingVisitorImports[0];
+          setPendingVisitorImports(pendingVisitorImports.slice(1));
+          await processVisitorImport(nextImport);
+        } else {
+          // All imports completed, refresh data
+          await fetchPdls();
+          setShowImportSummaryModal(true);
+        }
+        setShowDuplicateModal(false);
+        setCurrentVisitorData(null);
+        setDuplicatePdls([]);
+        return result;
+      }
+      
+      // Check if PDL has no visitors - automatically add without prompting
+      if (existingVisitors.length === 0) {
+        console.log(`Automatically adding visitor to empty PDL: ${currentVisitorData.name} to ${selectedPdl.last_name}, ${selectedPdl.first_name} ${selectedPdl.middle_name}`);
+        // Continue with adding the visitor automatically
+      }
+      
+      await axios.post(`/api/pdls/${selectedPdlId}/visitors`, currentVisitorData);
+      const result = { type: 'success', visitor: currentVisitorData.name, pdl: `${selectedPdl.last_name}, ${selectedPdl.first_name} ${selectedPdl.middle_name}` };
+      setShowDuplicateModal(false);
+      setCurrentVisitorData(null);
+      setDuplicatePdls([]);
+      
+      // Process next pending import if any
+      if (pendingVisitorImports.length > 0) {
+        const nextImport = pendingVisitorImports[0];
+        setPendingVisitorImports(pendingVisitorImports.slice(1));
+        await processVisitorImport(nextImport);
+      } else {
+        // All imports completed, refresh data
+        await fetchPdls();
+        setShowImportSummaryModal(true);
+      }
+      return result;
+    } catch (err) {
+      console.error('Failed to create visitor:', err);
+      alert(`Failed to create visitor: ${err.response?.data?.error || err.message}`);
+    }
+  };
+
+  // Process individual visitor import with smart matching
+  const processVisitorImport = async (importData) => {
+    const { pdlLast, pdlFirst, pdlMiddle, visitorData, rowIndex } = importData;
+    
+    // First, find PDLs by last name (case-insensitive)
+    const lastNameMatches = pdls.filter(pdl => 
+      pdl.last_name.toLowerCase() === pdlLast.toLowerCase()
+    );
+
+    if (lastNameMatches.length === 0) {
+      // No PDL with this last name exists, prompt user
+      const shouldCreate = window.confirm(
+        `No PDL found with last name "${pdlLast}". Do you want to create a new PDL for this visitor?\n\n` +
+        `Visitor: ${visitorData.name}\n` +
+        `PDL: ${pdlLast}, ${pdlFirst} ${pdlMiddle}`
+      );
+      
+      if (shouldCreate) {
+        try {
+          const newPdlPayload = {
+            last_name: pdlLast,
+            first_name: pdlFirst,
+            middle_name: pdlMiddle,
+            cell_number: 'TBD',
+            criminal_case_no: '',
+            offense_charge: '',
+            court_branch: '',
+            arrest_date: '',
+            commitment_date: '',
+            first_time_offender: 0
+          };
+          
+          const response = await axios.post('/pdls', newPdlPayload);
+          const newPdl = { id: response.data.id, ...newPdlPayload };
+          
+          // Add visitor to new PDL
+          await axios.post(`/api/pdls/${newPdl.id}/visitors`, visitorData);
+          console.log(`Created new PDL and visitor: ${pdlLast}, ${pdlFirst} ${pdlMiddle}`);
+        } catch (err) {
+          console.error(`Failed to create PDL and visitor for row ${rowIndex}:`, err);
+        }
+      } else {
+        console.log(`Skipped creating PDL for row ${rowIndex}: ${pdlLast}, ${pdlFirst} ${pdlMiddle}`);
+      }
+    } else {
+      // Found PDLs with matching last name, now check first names for verification
+      const firstNameMatches = lastNameMatches.filter(pdl => 
+        pdl.first_name.toLowerCase() === pdlFirst.toLowerCase()
+      );
+      
+      if (firstNameMatches.length === 1) {
+        // Perfect match: both last name and first name match exactly
+        const pdl = firstNameMatches[0];
+        
+        // Check if visitor already exists in this PDL
+        try {
+          const existingVisitorsRes = await axios.get(`/api/pdls/${pdl.id}/visitors`);
+          const existingVisitors = existingVisitorsRes.data || [];
+          
+          const visitorExists = existingVisitors.some(existingVisitor => 
+            existingVisitor.name.toLowerCase() === visitorData.name.toLowerCase()
+          );
+          
+          if (visitorExists) {
+            console.log(`Skipped duplicate visitor for row ${rowIndex}: ${visitorData.name}`);
+            return { type: 'skipped', reason: 'already_exists', visitor: visitorData.name, pdl: `${pdlLast}, ${pdlFirst} ${pdlMiddle}` };
+          }
+          
+          // Check if PDL has no visitors - automatically add without prompting
+          if (existingVisitors.length === 0) {
+            console.log(`Automatically adding visitor to empty PDL for row ${rowIndex}: ${visitorData.name} to ${pdlLast}, ${pdlFirst} ${pdlMiddle}`);
+            // Continue with adding the visitor automatically
+          }
+          
+          await axios.post(`/api/pdls/${pdl.id}/visitors`, visitorData);
+          console.log(`Added visitor to exact match PDL: ${pdlLast}, ${pdlFirst} ${pdlMiddle}`);
+          return { type: 'success', visitor: visitorData.name, pdl: `${pdlLast}, ${pdlFirst} ${pdlMiddle}` };
+        } catch (err) {
+          console.error(`Failed to add visitor to PDL for row ${rowIndex}:`, err);
+          return { type: 'error', visitor: visitorData.name, pdl: `${pdlLast}, ${pdlFirst} ${pdlMiddle}`, error: err.message };
+        }
+      } else if (firstNameMatches.length > 1) {
+        // Multiple PDLs with same last name AND first name, show selection modal
+        setDuplicatePdls(firstNameMatches);
+        setCurrentVisitorData({ ...visitorData, pdlFirst, pdlLast });
+        setShowDuplicateModal(true);
+        return { type: 'pending', visitor: visitorData.name, pdl: `${pdlLast}, ${pdlFirst} ${pdlMiddle}` };
+      } else {
+        // No first name matches found - PDL doesn't exist
+        console.log(`PDL doesn't exist: Looking for "${pdlLast}, ${pdlFirst}" but no matching first name found`);
+        return { type: 'skipped', reason: 'pdl_not_found', visitor: visitorData.name, pdl: `${pdlLast}, ${pdlFirst} ${pdlMiddle}` };
       }
     }
   };
@@ -589,6 +838,9 @@ const Datas = () => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
+    setIsImporting(true);
+    setImportProgress({ current: 0, total: 0 });
+
     try {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array' });
@@ -598,8 +850,12 @@ const Datas = () => {
 
       if (!rows.length) {
         alert('No rows found in the uploaded file.');
+        setIsImporting(false);
         return;
       }
+
+      // Set total count for progress tracking
+      setImportProgress({ current: 0, total: rows.length });
 
       // Always fetch latest PDLs to avoid stale cache while importing
       const freshPdlsRes = await axios.get('/pdls');
@@ -612,12 +868,41 @@ const Datas = () => {
       let visitorCreates = 0;
       const errors = [];
       let lastPdlData = { last_name: '', first_name: '', middle_name: '' };
+      const importQueue = [];
+      const importResults = { success: [], skipped: [], errors: [] };
 
       for (const [index, row] of rows.entries()) {
-        // Get PDL data from separate columns, forward-fill if empty
-        const pdlLast = capitalizeWords(normalizeSpaces(row['PDL Last Name']) || lastPdlData.last_name);
-        const pdlFirst = capitalizeWords(normalizeSpaces(row['PDL First Name']) || lastPdlData.first_name);
-        const pdlMiddle = capitalizeWords(normalizeSpaces(row['PDL Middle Name']) || lastPdlData.middle_name);
+        // Handle both combined and separate PDL name formats
+        let pdlLast = '';
+        let pdlFirst = '';
+        let pdlMiddle = '';
+        
+        const combinedPdlName = String(row['PDL Name'] || '').trim();
+        const separatePdlLastName = String(row['PDL Last Name'] || '').trim();
+        const separatePdlFirstName = String(row['PDL First Name'] || '').trim();
+        const separatePdlMiddleName = String(row['PDL Middle Name'] || '').trim();
+        
+        if (combinedPdlName) {
+          // Parse combined format: "Talisik, Angelo Freo"
+          const parts = combinedPdlName.split(',');
+          if (parts.length === 2) {
+            pdlLast = capitalizeWords(normalizeSpaces(parts[0].trim()));
+            const nameParts = parts[1].trim().split(' ');
+            if (nameParts.length >= 1) {
+              pdlFirst = capitalizeWords(normalizeSpaces(nameParts[0]));
+              if (nameParts.length > 1) {
+                pdlMiddle = capitalizeWords(normalizeSpaces(nameParts.slice(1).join(' ')));
+              }
+            }
+          }
+        }
+        
+        // If combined name parsing failed or no combined name, use separate fields with forward-fill
+        if (!pdlLast || !pdlFirst) {
+          pdlLast = capitalizeWords(normalizeSpaces(separatePdlLastName) || lastPdlData.last_name);
+          pdlFirst = capitalizeWords(normalizeSpaces(separatePdlFirstName) || lastPdlData.first_name);
+          pdlMiddle = capitalizeWords(normalizeSpaces(separatePdlMiddleName) || lastPdlData.middle_name);
+        }
 
         if (!pdlLast || !pdlFirst) {
           errors.push(`Row ${index + 2}: Missing PDL Last Name or First Name.`);
@@ -626,39 +911,6 @@ const Datas = () => {
 
         // Update lastPdlData for forward-filling
         lastPdlData = { last_name: pdlLast, first_name: pdlFirst, middle_name: pdlMiddle };
-
-        const key = nameKey(pdlLast, pdlFirst, pdlMiddle);
-        let pdl = existingByName.get(key);
-        
-        // If PDL doesn't exist, create it automatically
-        if (!pdl) {
-          try {
-            const newPdlPayload = {
-              last_name: pdlLast,
-              first_name: pdlFirst,
-              middle_name: pdlMiddle,
-              cell_number: 'TBD', // Default value, user can update later
-              criminal_case_no: '',
-              offense_charge: '',
-              court_branch: '',
-              arrest_date: '',
-              commitment_date: '',
-              first_time_offender: 0
-            };
-            
-            const response = await axios.post('/pdls', newPdlPayload);
-            const newPdl = { id: response.data.id, ...newPdlPayload };
-            
-            // Add to our local map for subsequent rows
-            existingByName.set(key, newPdl);
-            pdl = newPdl;
-            
-            console.log(`Auto-created PDL: ${pdlLast}, ${pdlFirst} ${pdlMiddle}`);
-          } catch (err) {
-            errors.push(`Row ${index + 2}: Failed to auto-create PDL "${pdlLast}, ${pdlFirst} ${pdlMiddle}" - ${err.response?.data?.error || err.message}`);
-            continue;
-          }
-        }
 
         const visitorName = normalizeSpaces(row['Visitor Name']);
         const relationship = normalizeSpaces(row['Relationship']);
@@ -669,42 +921,63 @@ const Datas = () => {
         const date_of_application = toYMD(row['Date of Application']);
         const contact_number = normalizeSpaces(row['Contact Number']);
 
-        if (!visitorName || !relationship || Number.isNaN(age) || age === '' || !address || !valid_id || !date_of_application || !contact_number) {
-          errors.push(`Row ${index + 2}: Missing/invalid Visitor fields (Name, Relationship, Age, Address, Valid ID, Date of Application, Contact Number)`);
+        // Skip rows that don't have visitor data (empty PDLs)
+        if (!visitorName || !relationship || !address || !valid_id || !date_of_application || !contact_number) {
+          console.log(`Skipping row ${index + 2}: No visitor data (empty PDL or incomplete visitor info)`);
           continue;
         }
 
-        try {
-          // Backend mounts visitor routes under /api
-          await axios.post(`/api/pdls/${pdl.id}/visitors`, {
-            name: visitorName,
-            relationship,
-            age,
-            address,
-            valid_id,
-            date_of_application,
-            contact_number,
-            verified_conjugal: false
-          });
-          visitorCreates += 1;
-        } catch (err) {
-          errors.push(`Row ${index + 2}: Failed to create visitor - ${err.response?.data?.error || err.message}`);
+        const visitorData = {
+          name: visitorName,
+          relationship,
+          age,
+          address,
+          valid_id,
+          date_of_application,
+          contact_number,
+          verified_conjugal: false
+        };
+
+        // Add to import queue for processing
+        importQueue.push({
+          pdlLast,
+          pdlFirst,
+          pdlMiddle,
+          visitorData,
+          rowIndex: index + 2
+        });
+      }
+
+      // Process imports one by one to handle user prompts
+      for (let i = 0; i < importQueue.length; i++) {
+        const importData = importQueue[i];
+        setImportProgress({ current: i + 1, total: importQueue.length });
+        
+        const result = await processVisitorImport(importData);
+        if (result) {
+          if (result.type === 'success') {
+            importResults.success.push(result);
+            visitorCreates += 1;
+          } else if (result.type === 'skipped') {
+            importResults.skipped.push(result);
+          } else if (result.type === 'error') {
+            importResults.errors.push(result);
+          }
         }
       }
 
       // Refresh PDLs after import
       await fetchPdls();
 
-      let message = `Import finished. Visitors created: ${visitorCreates}.`;
-      if (errors.length) {
-        message += `\n\nErrors:\n` + errors.slice(0, 10).join('\n');
-        if (errors.length > 10) message += `\n...and ${errors.length - 10} more.`;
-      }
-      alert(message);
+      // Set import summary and show modal
+      setImportSummary(importResults);
+      setShowImportSummaryModal(true);
     } catch (err) {
       console.error('Failed to import PDLs with visitors:', err);
       alert('Failed to import PDLs with visitors. Make sure the file follows the template.');
     } finally {
+      setIsImporting(false);
+      setImportProgress({ current: 0, total: 0 });
       if (fileInputVisitorsRef.current) {
         fileInputVisitorsRef.current.value = '';
       }
@@ -806,19 +1079,16 @@ const Datas = () => {
 
   const exportToExcel = () => {
     const dataToExport = filteredSortedPdls.map(pdl => {
-      const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
-      const cellDisplay = cell && cell.cell_name ? `${pdl.cell_number} - ${cell.cell_name}` : pdl.cell_number;
-      
       return {
-        'Last Name': pdl.last_name,
-        'First Name': pdl.first_name,
-        'Middle Name': pdl.middle_name,
-        'Cell Number': cellDisplay,
-        'Criminal Case No.': pdl.criminal_case_no,
-        'Offense Charge': pdl.offense_charge,
-        'Court Branch': pdl.court_branch,
-        'Date of Arrest': formatDate(pdl.arrest_date),
-        'Date of Commitment': formatDate(pdl.commitment_date),
+        'Last Name': pdl.last_name || '',
+        'First Name': pdl.first_name || '',
+        'Middle Name': pdl.middle_name || '',
+        'Cell Number': pdl.cell_number || '',
+        'Criminal Case No.': pdl.criminal_case_no || '',
+        'Offense Charge': pdl.offense_charge || '',
+        'Court Branch': pdl.court_branch || '',
+        'Date of Arrest': pdl.arrest_date || '',
+        'Date of Commitment': pdl.commitment_date || '',
         'First Time Offender': pdl.first_time_offender === 1 || pdl.first_time_offender === '1' ? 'Yes' : 'No',
       };
     });
@@ -874,10 +1144,11 @@ const exportPdlsWithVisitorsToExcel = async () => {
         const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
         const cellDisplay = cell && cell.cell_name ? `${pdl.cell_number} - ${cell.cell_name}` : pdl.cell_number;
         
+        // Create combined PDL name in format "Last Name, First Name Middle Name"
+        const pdlName = `${pdl.last_name || ''}, ${pdl.first_name || ''} ${pdl.middle_name || ''}`.trim().replace(/,\s*$/, '');
+        
         rows.push({
-          'PDL Last Name': pdl.last_name || '',
-          'PDL First Name': pdl.first_name || '',
-          'PDL Middle Name': pdl.middle_name || '',
+          'PDL Name': pdlName,
           'Cell Number': cellDisplay,
           'Visitor Name': '',
           'Relationship': '',
@@ -892,17 +1163,18 @@ const exportPdlsWithVisitorsToExcel = async () => {
           const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
           const cellDisplay = cell && cell.cell_name ? `${cell.cell_name} - ${pdl.cell_number}` : pdl.cell_number;
           
+          // Create combined PDL name in format "Last Name, First Name Middle Name"
+          const pdlName = `${pdl.last_name || ''}, ${pdl.first_name || ''} ${pdl.middle_name || ''}`.trim().replace(/,\s*$/, '');
+          
           rows.push({
-            'PDL Last Name': idx === 0 ? (pdl.last_name || '') : '',
-            'PDL First Name': idx === 0 ? (pdl.first_name || '') : '',
-            'PDL Middle Name': idx === 0 ? (pdl.middle_name || '') : '',
+            'PDL Name': idx === 0 ? pdlName : '',
             'Cell Number': idx === 0 ? cellDisplay : '',
             'Visitor Name': v.name || '',
             'Relationship': v.relationship || '',
             'Age': v.age || '',
             'Address': v.address || '',
             'Valid ID': v.valid_id || '',
-            'Date of Application': formatDateOnly(v.date_of_application),
+            'Date of Application': toYMD(v.date_of_application),
             'Contact Number': v.contact_number || ''
           });
         });
@@ -938,8 +1210,17 @@ const exportPdlsWithVisitorsToExcel = async () => {
   const downloadPdlTemplateLinkHandler = () => downloadPdlImportTemplate();
   const downloadPdlWithVisitorsTemplateLinkHandler = () => downloadPdlWithVisitorsTemplate();
 
+
   return (
     <div className="common-container">
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
       <Header activePage="Datas" />
 
       <main>
@@ -992,18 +1273,64 @@ const exportPdlsWithVisitorsToExcel = async () => {
               </svg>
               Export PDL with Visitors
             </button>
-            <button className="common-button" type="button" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
-              <svg className="button-icon" viewBox="0 0 24 24">
-                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-              </svg>
-              Import PDLs
+            <button 
+              className="common-button" 
+              type="button" 
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+              disabled={isImportingPdls}
+              style={{ 
+                opacity: isImportingPdls ? 0.6 : 1,
+                cursor: isImportingPdls ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isImportingPdls ? (
+                <>
+                  <svg className="button-icon" viewBox="0 0 24 24" style={{ 
+                    animation: 'spin 1s linear infinite',
+                    transformOrigin: 'center'
+                  }}>
+                    <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                  </svg>
+                  Importing... ({pdlImportProgress.current}/{pdlImportProgress.total})
+                </>
+              ) : (
+                <>
+                  <svg className="button-icon" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                  </svg>
+                  Import PDLs
+                </>
+              )}
             </button>
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportFileChange} />
-            <button className="common-button" type="button" onClick={() => fileInputVisitorsRef.current && fileInputVisitorsRef.current.click()}>
-              <svg className="button-icon" viewBox="0 0 24 24">
-                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-              </svg>
-              Import PDL with Visitors
+            <button 
+              className="common-button" 
+              type="button" 
+              onClick={() => fileInputVisitorsRef.current && fileInputVisitorsRef.current.click()}
+              disabled={isImporting}
+              style={{ 
+                opacity: isImporting ? 0.6 : 1,
+                cursor: isImporting ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isImporting ? (
+                <>
+                  <svg className="button-icon" viewBox="0 0 24 24" style={{ 
+                    animation: 'spin 1s linear infinite',
+                    transformOrigin: 'center'
+                  }}>
+                    <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                  </svg>
+                  Importing... ({importProgress.current}/{importProgress.total})
+                </>
+              ) : (
+                <>
+                  <svg className="button-icon" viewBox="0 0 24 24">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                  </svg>
+                  Import PDL with Visitors
+                </>
+              )}
             </button>
             <input ref={fileInputVisitorsRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportPdlsWithVisitorsFileChange} />
           </div>
@@ -1908,6 +2235,338 @@ const exportPdlsWithVisitorsToExcel = async () => {
           </div>
         </div>
       )}
+
+      {/* Duplicate PDL Selection Modal */}
+      {showDuplicateModal && (
+        <div className="common-modal" style={{ zIndex: 10000 }}>
+          <div className="common-modal-content" style={{ zIndex: 10001 }}>
+            <h3 style={{ textAlign: 'center', marginBottom: '20px', fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+              Select PDL for Visitor
+            </h3>
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ marginBottom: '10px', fontWeight: '500', color: '#374151' }}>
+                Multiple PDLs found with matching last name. Please select which PDL to add the visitor to:
+              </p>
+              <p style={{ marginBottom: '8px', fontSize: '14px', color: '#6b7280' }}>
+                <strong>Visitor:</strong> {currentVisitorData?.name}
+              </p>
+              <p style={{ marginBottom: '15px', fontSize: '13px', color: '#9ca3af', fontStyle: 'italic' }}>
+                Note: The system found PDLs with the same last name but different first names. Please verify the correct PDL.
+              </p>
+            </div>
+            
+            <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '20px' }}>
+              {duplicatePdls.map((pdl) => (
+                <div
+                  key={pdl.id}
+                  onClick={() => handleDuplicatePdlSelection(pdl.id)}
+                  style={{
+                    padding: '12px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '8px',
+                    marginBottom: '8px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    background: '#fff'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.borderColor = '#4b5563';
+                    e.target.style.background = '#f8fafc';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.borderColor = '#e5e7eb';
+                    e.target.style.background = '#fff';
+                  }}
+                >
+                  <div style={{ fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+                    {pdl.last_name}, {pdl.first_name} {pdl.middle_name}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
+                    Cell: {pdl.cell_number} | Case: {pdl.criminal_case_no || 'N/A'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                    Last Name: ✓ Match | First Name: {pdl.first_name.toLowerCase() === (currentVisitorData?.pdlFirst || '').toLowerCase() ? '✓ Match' : '✗ Different'}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  setShowDuplicateModal(false);
+                  setCurrentVisitorData(null);
+                  setDuplicatePdls([]);
+                }}
+                style={{
+                  background: '#e5e7eb',
+                  color: '#374151',
+                  border: 'none',
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Summary Modal */}
+      {showImportSummaryModal && (
+        <div className="common-modal" style={{ zIndex: 10002 }}>
+          <div className="common-modal-content" style={{ maxWidth: '800px', maxHeight: '80vh', zIndex: 10003 }}>
+            <h3 style={{ textAlign: 'center', marginBottom: '20px', fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+              Import Summary
+            </h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
+                    {importSummary.success.length}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>Successfully Added</div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
+                    {importSummary.skipped.length}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>Skipped</div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444' }}>
+                    {importSummary.errors.length}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>Errors</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '20px' }}>
+              {/* Successfully Added */}
+              {importSummary.success.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#10b981', marginBottom: '10px', fontSize: '16px', fontWeight: '600' }}>
+                    ✅ Successfully Added ({importSummary.success.length})
+                  </h4>
+                  {importSummary.success.map((item, index) => (
+                    <div key={index} style={{ 
+                      padding: '8px 12px', 
+                      background: '#f0fdf4', 
+                      border: '1px solid #bbf7d0', 
+                      borderRadius: '6px', 
+                      marginBottom: '4px',
+                      fontSize: '13px'
+                    }}>
+                      <strong>{item.visitor}</strong> → {item.pdl}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Skipped */}
+              {importSummary.skipped.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#f59e0b', marginBottom: '10px', fontSize: '16px', fontWeight: '600' }}>
+                    ⚠️ Skipped ({importSummary.skipped.length})
+                  </h4>
+                  {importSummary.skipped.map((item, index) => (
+                    <div key={index} style={{ 
+                      padding: '8px 12px', 
+                      background: '#fffbeb', 
+                      border: '1px solid #fed7aa', 
+                      borderRadius: '6px', 
+                      marginBottom: '4px',
+                      fontSize: '13px'
+                    }}>
+                      <strong>{item.visitor}</strong> → {item.pdl}
+                      <div style={{ fontSize: '11px', color: '#92400e', marginTop: '2px' }}>
+                        {item.reason === 'already_exists' ? 'Already exists' : 
+                         item.reason === 'empty_pdl_declined' ? 'Empty PDL declined' :
+                         item.reason === 'pdl_not_found' ? 'PDL not found' : 'Unknown reason'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Errors */}
+              {importSummary.errors.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#ef4444', marginBottom: '10px', fontSize: '16px', fontWeight: '600' }}>
+                    ❌ Errors ({importSummary.errors.length})
+                  </h4>
+                  {importSummary.errors.map((item, index) => (
+                    <div key={index} style={{ 
+                      padding: '8px 12px', 
+                      background: '#fef2f2', 
+                      border: '1px solid #fecaca', 
+                      borderRadius: '6px', 
+                      marginBottom: '4px',
+                      fontSize: '13px'
+                    }}>
+                      <strong>{item.visitor}</strong> → {item.pdl}
+                      <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '2px' }}>
+                        {item.error}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button
+                onClick={() => setShowImportSummaryModal(false)}
+                style={{
+                  background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDL Import Summary Modal */}
+      {showPdlImportSummaryModal && (
+        <div className="common-modal" style={{ zIndex: 10004 }}>
+          <div className="common-modal-content" style={{ maxWidth: '800px', maxHeight: '80vh', zIndex: 10005 }}>
+            <h3 style={{ textAlign: 'center', marginBottom: '20px', fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+              PDL Import Summary
+            </h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
+                    {pdlImportSummary.success.length}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>Successfully Added</div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
+                    {pdlImportSummary.skipped.length}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>Skipped</div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444' }}>
+                    {pdlImportSummary.errors.length}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#6b7280' }}>Errors</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '20px' }}>
+              {/* Successfully Added */}
+              {pdlImportSummary.success.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#10b981', marginBottom: '10px', fontSize: '16px', fontWeight: '600' }}>
+                    ✅ Successfully Added ({pdlImportSummary.success.length})
+                  </h4>
+                  {pdlImportSummary.success.map((item, index) => (
+                    <div key={index} style={{ 
+                      padding: '8px 12px', 
+                      background: '#f0fdf4', 
+                      border: '1px solid #bbf7d0', 
+                      borderRadius: '6px', 
+                      marginBottom: '4px',
+                      fontSize: '13px'
+                    }}>
+                      <strong>{item.pdl}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Skipped */}
+              {pdlImportSummary.skipped.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#f59e0b', marginBottom: '10px', fontSize: '16px', fontWeight: '600' }}>
+                    ⚠️ Skipped ({pdlImportSummary.skipped.length})
+                  </h4>
+                  {pdlImportSummary.skipped.map((item, index) => (
+                    <div key={index} style={{ 
+                      padding: '8px 12px', 
+                      background: '#fffbeb', 
+                      border: '1px solid #fed7aa', 
+                      borderRadius: '6px', 
+                      marginBottom: '4px',
+                      fontSize: '13px'
+                    }}>
+                      <strong>{item.pdl}</strong>
+                      <div style={{ fontSize: '11px', color: '#92400e', marginTop: '2px' }}>
+                        Already exists
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Errors */}
+              {pdlImportSummary.errors.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#ef4444', marginBottom: '10px', fontSize: '16px', fontWeight: '600' }}>
+                    ❌ Errors ({pdlImportSummary.errors.length})
+                  </h4>
+                  {pdlImportSummary.errors.map((item, index) => (
+                    <div key={index} style={{ 
+                      padding: '8px 12px', 
+                      background: '#fef2f2', 
+                      border: '1px solid #fecaca', 
+                      borderRadius: '6px', 
+                      marginBottom: '4px',
+                      fontSize: '13px'
+                    }}>
+                      <strong>{item.pdl}</strong>
+                      <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '2px' }}>
+                        {item.error}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button
+                onClick={() => setShowPdlImportSummaryModal(false)}
+                style={{
+                  background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

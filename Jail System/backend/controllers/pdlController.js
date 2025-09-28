@@ -63,3 +63,15 @@ exports.deletePdl = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.deleteAllPdls = async (req, res) => {
+  try {
+    const result = await PDL.deleteAll();
+    res.json({ 
+      message: 'All PDLs deleted successfully',
+      deletedCount: result.affectedRows 
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

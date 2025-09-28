@@ -125,3 +125,20 @@
   margin-top: 10px;
   text-align: center;
 }
+
+/* ID Preview Button Container */
+.id-preview-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+  padding: 10px;
+}
+
+.id-preview-buttons .common-button {
+  min-width: 140px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}

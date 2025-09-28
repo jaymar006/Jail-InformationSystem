@@ -31,4 +31,9 @@ router.put('/scanned_visitors/:id', require('../controllers/visitorController').
 
 router.delete('/scanned_visitors/:id', require('../controllers/visitorController').deleteScannedVisitor);
 
+// Delete logs routes
+router.delete('/logs/all', require('../controllers/visitorController').deleteAllLogs);
+router.delete('/logs/date-range', require('../controllers/visitorController').deleteLogsByDateRange);
+router.delete('/logs/date', require('../controllers/visitorController').deleteLogsByDate);
+
 module.exports = router;

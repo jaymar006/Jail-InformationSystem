@@ -1,5 +1,4 @@
 const db = require('../config/db');
-const crypto = require('crypto');
 
 const Visitor = {
   getAllByPdlId: async (pdlId) => {
@@ -48,7 +47,7 @@ const {
 // Generate visitor_id in the form VIS-YY-XXXXXX (YY=last two digits of year, X=digit)
 const generateCandidateVisitorId = () => {
   const yearTwoDigits = String(new Date().getFullYear()).slice(2);
-  const numericPart = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  const numericPart = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
   return `VIS-${yearTwoDigits}-${numericPart}`;
 };
 

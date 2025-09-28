@@ -111,6 +111,15 @@ const PDL = {
         else resolve(result);
       });
     });
+  },
+
+  deleteAll: () => {
+    return new Promise((resolve, reject) => {
+      db.query('DELETE FROM pdls', (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
+      });
+    });
   }
 };
 

@@ -265,3 +265,57 @@ exports.deleteScannedVisitor = async (req, res) => {
     res.status(500).json({ error: error.message || 'Failed to delete scanned visitor' });
   }
 };
+
+exports.deleteAllLogs = async (req, res) => {
+  try {
+    const result = await ScannedVisitor.deleteAll();
+    res.json({ 
+      message: 'All logs deleted successfully',
+      deletedCount: result.affectedRows 
+    });
+  } catch (error) {
+    console.error('Error in deleteAllLogs:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete all logs' });
+  }
+};
+
+exports.deleteLogsByDateRange = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+
+    const result = await ScannedVisitor.deleteByDateRange(startDate, endDate);
+    res.json({ 
+      message: 'Logs deleted successfully for the specified date range',
+      deletedCount: result.affectedRows,
+      startDate,
+      endDate
+    });
+  } catch (error) {
+    console.error('Error in deleteLogsByDateRange:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete logs by date range' });
+  }
+};
+
+exports.deleteLogsByDate = async (req, res) => {
+  try {
+    const { date } = req.body;
+    
+    if (!date) {
+      return res.status(400).json({ error: 'Date is required' });
+    }
+
+    const result = await ScannedVisitor.deleteByDate(date);
+    res.json({ 
+      message: 'Logs deleted successfully for the specified date',
+      deletedCount: result.affectedRows,
+      date
+    });
+  } catch (error) {
+    console.error('Error in deleteLogsByDate:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete logs by date' });
+  }
+};

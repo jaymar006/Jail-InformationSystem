@@ -15,7 +15,7 @@ const Modal = ({ children, onClose }) => {
 };
 
 const Settings = () => {
-  const [modalOpen, setModalOpen] = useState(null); // 'username', 'password', 'cell', 'editCell' or null
+  const [modalOpen, setModalOpen] = useState(null); // 'username', 'password', 'cell', 'editCell', 'deleteAllPdls', 'deleteLogs', 'selectLogs' or null
   const [newUsername, setNewUsername] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -31,6 +31,11 @@ const Settings = () => {
     status: 'active'
   });
   const [editingCell, setEditingCell] = useState(null);
+
+  // Logs management state
+  const [logs, setLogs] = useState([]);
+  const [selectedLogs, setSelectedLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   useEffect(() => {
     const fetchUsername = async () => {
@@ -207,6 +212,149 @@ const Settings = () => {
     }
   };
 
+  // Delete all PDLs function
+  const handleDeleteAllPdls = async () => {
+    try {
+      const response = await axios.delete('/pdls');
+      if (response.data.message === 'All PDLs deleted successfully') {
+        alert(`All PDLs deleted successfully. ${response.data.deletedCount} records removed.`);
+      }
+    } catch (err) {
+      console.error('Failed to delete all PDLs:', err);
+      alert(`Failed to delete all PDLs: ${err.response?.data?.error || err.message}`);
+    }
+    setModalOpen(null);
+  };
+
+  // Delete logs functions
+  const handleDeleteAllLogs = async () => {
+    try {
+      const response = await axios.delete('/api/logs/all');
+      if (response.data.message === 'All logs deleted successfully') {
+        alert(`All logs deleted successfully. ${response.data.deletedCount} records removed.`);
+      }
+    } catch (err) {
+      console.error('Failed to delete all logs:', err);
+      alert(`Failed to delete all logs: ${err.response?.data?.error || err.message}`);
+    }
+    setModalOpen(null);
+  };
+
+  const handleDeleteLogsByDate = async (date) => {
+    try {
+      const response = await axios.delete('/api/logs/date', { data: { date } });
+      if (response.data.message === 'Logs deleted successfully for the specified date') {
+        alert(`Logs deleted successfully for ${date}. ${response.data.deletedCount} records removed.`);
+      }
+    } catch (err) {
+      console.error('Failed to delete logs by date:', err);
+      alert(`Failed to delete logs: ${err.response?.data?.error || err.message}`);
+    }
+  };
+
+  const handleDeleteLogsByDateRange = async (startDate, endDate) => {
+    try {
+      const response = await axios.delete('/api/logs/date-range', { 
+        data: { startDate, endDate } 
+      });
+      if (response.data.message === 'Logs deleted successfully for the specified date range') {
+        alert(`Logs deleted successfully from ${startDate} to ${endDate}. ${response.data.deletedCount} records removed.`);
+      }
+    } catch (err) {
+      console.error('Failed to delete logs by date range:', err);
+      alert(`Failed to delete logs: ${err.response?.data?.error || err.message}`);
+    }
+  };
+
+  const handleDeleteSpecificLog = async (logId) => {
+    try {
+      const response = await axios.delete(`/api/scanned_visitors/${logId}`);
+      if (response.data.message === 'Scanned visitor deleted successfully') {
+        alert(`Log with ID ${logId} deleted successfully.`);
+      }
+    } catch (err) {
+      console.error('Failed to delete specific log:', err);
+      alert(`Failed to delete log: ${err.response?.data?.error || err.message}`);
+    }
+  };
+
+  // Fetch all logs for selection
+  const fetchLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const response = await axios.get('/api/scanned_visitors');
+      setLogs(response.data);
+    } catch (err) {
+      console.error('Failed to fetch logs:', err);
+      alert(`Failed to fetch logs: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  // Open logs selection modal
+  const openLogsSelectionModal = async () => {
+    await fetchLogs();
+    setSelectedLogs([]);
+    setModalOpen('selectLogs');
+  };
+
+  // Handle log selection
+  const handleLogSelection = (logId, isSelected) => {
+    if (isSelected) {
+      setSelectedLogs([...selectedLogs, logId]);
+    } else {
+      setSelectedLogs(selectedLogs.filter(id => id !== logId));
+    }
+  };
+
+  // Handle select all logs
+  const handleSelectAllLogs = (isSelected) => {
+    if (isSelected) {
+      setSelectedLogs(logs.map(log => log.id));
+    } else {
+      setSelectedLogs([]);
+    }
+  };
+
+  // Delete selected logs
+  const handleDeleteSelectedLogs = async () => {
+    if (selectedLogs.length === 0) {
+      alert('Please select at least one log to delete.');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedLogs.length} selected log(s)?`)) {
+      return;
+    }
+
+    try {
+      let deletedCount = 0;
+      let failedCount = 0;
+
+      for (const logId of selectedLogs) {
+        try {
+          await axios.delete(`/api/scanned_visitors/${logId}`);
+          deletedCount++;
+        } catch (err) {
+          console.error(`Failed to delete log ${logId}:`, err);
+          failedCount++;
+        }
+      }
+
+      if (deletedCount > 0) {
+        alert(`Successfully deleted ${deletedCount} log(s).${failedCount > 0 ? ` ${failedCount} log(s) failed to delete.` : ''}`);
+        await fetchLogs(); // Refresh the logs list
+        setSelectedLogs([]);
+      } else {
+        alert('Failed to delete any logs.');
+      }
+    } catch (err) {
+      console.error('Failed to delete selected logs:', err);
+      alert(`Failed to delete logs: ${err.message}`);
+    }
+  };
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -225,6 +373,24 @@ const Settings = () => {
           <button onClick={() => openModal('username')}>Change Username</button>
           <button onClick={() => openModal('password')}>Change Password</button>
           <button onClick={() => openModal('cell')}>Manage Cells</button>
+          <button 
+            onClick={() => openModal('deleteLogs')}
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              color: 'white'
+            }}
+          >
+            Delete Logs
+          </button>
+          <button 
+            onClick={() => openModal('deleteAllPdls')}
+            style={{
+              background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+              color: 'white'
+            }}
+          >
+            Delete All PDLs
+          </button>
         </div>
 
         {modalOpen === 'username' && (
@@ -417,6 +583,411 @@ const Settings = () => {
                 </button>
               </div>
             </form>
+          </Modal>
+        )}
+
+        {modalOpen === 'deleteAllPdls' && (
+          <Modal onClose={closeModal}>
+            <h3 style={{ color: '#dc2626', textAlign: 'center' }}>⚠️ Delete All PDLs</h3>
+            
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+              <p style={{ marginBottom: '15px', fontSize: '16px', color: '#374151' }}>
+                Are you sure you want to delete <strong>ALL PDLs</strong>?
+              </p>
+              <p style={{ marginBottom: '15px', fontSize: '14px', color: '#6b7280' }}>
+                This action will permanently remove all PDL records from the database.
+              </p>
+              <p style={{ fontSize: '14px', color: '#dc2626', fontWeight: '600' }}>
+                This action cannot be undone!
+              </p>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button
+                onClick={handleDeleteAllPdls}
+                style={{
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Yes, Delete All
+              </button>
+              <button
+                onClick={closeModal}
+                style={{
+                  background: '#e5e7eb',
+                  color: '#374151',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {modalOpen === 'deleteLogs' && (
+          <Modal onClose={closeModal}>
+            <h3 style={{ color: '#f59e0b', textAlign: 'center' }}>🗑️ Delete Logs</h3>
+            
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+              <p style={{ marginBottom: '15px', fontSize: '16px', color: '#374151' }}>
+                Choose how you want to delete logs:
+              </p>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+              <button
+                onClick={handleDeleteAllLogs}
+                style={{
+                  background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Delete All Logs
+              </button>
+              
+              <div style={{ 
+                padding: '16px', 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '8px',
+                backgroundColor: '#f9fafb'
+              }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                  Delete by Specific Date
+                </h4>
+                <input
+                  type="date"
+                  id="deleteDate"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    marginBottom: '8px'
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const date = document.getElementById('deleteDate').value;
+                    if (date) {
+                      handleDeleteLogsByDate(date);
+                    } else {
+                      alert('Please select a date');
+                    }
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    width: '100%'
+                  }}
+                >
+                  Delete Logs for Selected Date
+                </button>
+              </div>
+              
+              <div style={{ 
+                padding: '16px', 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '8px',
+                backgroundColor: '#f9fafb'
+              }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                  Delete by Date Range
+                </h4>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <input
+                    type="date"
+                    id="startDate"
+                    placeholder="Start Date"
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                  <input
+                    type="date"
+                    id="endDate"
+                    placeholder="End Date"
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const startDate = document.getElementById('startDate').value;
+                    const endDate = document.getElementById('endDate').value;
+                    if (startDate && endDate) {
+                      if (new Date(startDate) <= new Date(endDate)) {
+                        handleDeleteLogsByDateRange(startDate, endDate);
+                      } else {
+                        alert('Start date must be before or equal to end date');
+                      }
+                    } else {
+                      alert('Please select both start and end dates');
+                    }
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    width: '100%'
+                  }}
+                >
+                  Delete Logs for Date Range
+                </button>
+              </div>
+              
+              <div style={{ 
+                padding: '16px', 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '8px',
+                backgroundColor: '#f9fafb'
+              }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+                  Select Specific Logs to Delete
+                </h4>
+                <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#6b7280' }}>
+                  Choose specific logs from a list to delete
+                </p>
+                <button
+                  onClick={openLogsSelectionModal}
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    width: '100%'
+                  }}
+                >
+                  Select Logs to Delete
+                </button>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button
+                onClick={closeModal}
+                style={{
+                  background: '#e5e7eb',
+                  color: '#374151',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {modalOpen === 'selectLogs' && (
+          <Modal onClose={closeModal}>
+            <h3 style={{ color: '#ef4444', textAlign: 'center' }}>🗑️ Select Logs to Delete</h3>
+            
+            <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+              <p style={{ marginBottom: '15px', fontSize: '16px', color: '#374151' }}>
+                Select the logs you want to delete:
+              </p>
+              <p style={{ marginBottom: '15px', fontSize: '14px', color: '#6b7280' }}>
+                {selectedLogs.length} of {logs.length} logs selected
+              </p>
+            </div>
+
+            {loadingLogs ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>Loading logs...</div>
+              </div>
+            ) : logs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '16px', color: '#6b7280' }}>No logs found</div>
+              </div>
+            ) : (
+              <>
+                {/* Select All Checkbox */}
+                <div style={{ 
+                  padding: '12px 16px', 
+                  borderBottom: '1px solid #e5e7eb',
+                  backgroundColor: '#f9fafb',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <input
+                    type="checkbox"
+                    id="selectAll"
+                    checked={selectedLogs.length === logs.length && logs.length > 0}
+                    onChange={(e) => handleSelectAllLogs(e.target.checked)}
+                    style={{ transform: 'scale(1.2)' }}
+                  />
+                  <label htmlFor="selectAll" style={{ fontWeight: '600', color: '#374151', cursor: 'pointer' }}>
+                    Select All ({logs.length} logs)
+                  </label>
+                </div>
+
+                {/* Logs List */}
+                <div style={{ 
+                  maxHeight: '400px', 
+                  overflowY: 'auto',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px'
+                }}>
+                  {logs.map((log) => (
+                    <div
+                      key={log.id}
+                      style={{
+                        padding: '12px 16px',
+                        borderBottom: '1px solid #f3f4f6',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        backgroundColor: selectedLogs.includes(log.id) ? '#fef2f2' : 'white',
+                        transition: 'background-color 0.2s ease'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedLogs.includes(log.id)}
+                        onChange={(e) => handleLogSelection(log.id, e.target.checked)}
+                        style={{ transform: 'scale(1.1)' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'flex-start',
+                          marginBottom: '4px'
+                        }}>
+                          <div style={{ fontWeight: '600', color: '#111827', fontSize: '14px' }}>
+                            ID: {log.id} | {log.visitor_name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                            {new Date(log.scan_date).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '2px' }}>
+                          PDL: {log.pdl_name} | Cell: {log.cell}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                          Time In: {log.time_in ? new Date(log.time_in).toLocaleTimeString() : 'N/A'} | 
+                          Time Out: {log.time_out ? new Date(log.time_out).toLocaleTimeString() : 'Open'}
+                        </div>
+                        {log.relationship && (
+                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                            Relationship: {log.relationship}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  marginTop: '20px',
+                  padding: '16px',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '8px'
+                }}>
+                  <div style={{ fontSize: '14px', color: '#374151' }}>
+                    {selectedLogs.length} log(s) selected
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button
+                      onClick={closeModal}
+                      style={{
+                        background: '#e5e7eb',
+                        color: '#374151',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeleteSelectedLogs}
+                      disabled={selectedLogs.length === 0}
+                      style={{
+                        background: selectedLogs.length === 0 
+                          ? '#d1d5db' 
+                          : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        cursor: selectedLogs.length === 0 ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s ease',
+                        opacity: selectedLogs.length === 0 ? 0.6 : 1
+                      }}
+                    >
+                      Delete Selected ({selectedLogs.length})
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </Modal>
         )}
       </div>

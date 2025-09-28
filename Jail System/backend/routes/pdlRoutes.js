@@ -83,6 +83,20 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// DELETE ALL PDLs
+router.delete('/', async (req, res) => {
+  try {
+    const [result] = await db.query('DELETE FROM pdls');
+    res.json({ 
+      message: 'All PDLs deleted successfully',
+      deletedCount: result.affectedRows 
+    });
+  } catch (err) {
+    console.error('Error deleting all PDLs:', err);
+    res.status(500).json({ error: 'Failed to delete all PDLs' });
+  }
+});
+
 // DELETE PDL
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;

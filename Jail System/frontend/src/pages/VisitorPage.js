@@ -448,13 +448,13 @@ const VisitorPage = () => {
         )}
 
         {isSelecting && (
-          <div style={{ marginTop: '10px' }}>
+          <div className="id-preview-buttons">
             <button className="common-button" onClick={handleConfirmSelection}>
               <svg className="button-icon" viewBox="0 0 24 24">
                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
               </svg>
               Confirm
-            </button>{' '}
+            </button>
             <button className="common-button" onClick={handleCancelSelection}>
               <svg className="button-icon" viewBox="0 0 24 24">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -1085,8 +1085,13 @@ const VisitorPage = () => {
                 ))}
               </div>
             </div>
-            <div style={{ marginTop: '10px' }}>
-              <button className="common-button" onClick={handleCloseIdPreview}>Close Preview</button>{' '}
+            <div className="id-preview-buttons">
+              <button className="common-button" onClick={handleCloseIdPreview}>
+                <svg className="button-icon" viewBox="0 0 24 24">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+                Close Preview
+              </button>
               <button className="common-button" onClick={() => {
                 try {
                   const container = document.getElementById('id-preview-container');
@@ -1110,14 +1115,24 @@ const VisitorPage = () => {
                   console.error('Print error:', error);
                   alert('An error occurred while trying to print. Please try again.');
                 }
-              }}>Print Selected IDs</button>{' '}
+              }}>
+                <svg className="button-icon" viewBox="0 0 24 24">
+                  <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+                </svg>
+                Print Selected IDs
+              </button>
               <button className="common-button" onClick={() => {
                 if (selectedVisitorIds.length !== 1) {
                   alert('Please select exactly one visitor to add a photo.');
                   return;
                 }
                 openCameraForVisitor(selectedVisitorIds[0]);
-              }}>Add a photo</button>{' '}
+              }}>
+                <svg className="button-icon" viewBox="0 0 24 24">
+                  <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21A2 2 0 0 0 5 23H19A2 2 0 0 0 21 21V9M19 9H14V4H5V21H19V9Z"/>
+                </svg>
+                Add Photo
+              </button>
               <button className="common-button" onClick={() => {
                 if (selectedVisitorIds.length !== 1) {
                   alert('Please select exactly one visitor to save.');
@@ -1141,7 +1156,12 @@ const VisitorPage = () => {
                     console.error('Error saving image:', error);
                     alert('Failed to save visitor ID as image.');
                   });
-              }}>Save</button>
+              }}>
+                <svg className="button-icon" viewBox="0 0 24 24">
+                  <path d="M17 3H5C3.89 3 3 3.9 3 5V19C3 20.1 3.89 21 5 21H19C20.1 21 21 20.1 21 19V7L17 3M19 19H5V5H16.17L19 7.83V19M12 12C10.34 12 9 13.34 9 15S10.34 18 12 18 15 16.66 15 15 13.66 12 12 12M6 6H15V10H6V6Z"/>
+                </svg>
+                Save ID
+              </button>
             </div>
           </div>
         )}
