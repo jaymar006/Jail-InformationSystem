@@ -50,12 +50,6 @@ exports.addCell = async (req, res) => {
   }
   
   try {
-    // Check if cell number already exists
-    const existingCell = await Cell.getByCellNumber(req.body.cell_number);
-    if (existingCell) {
-      return res.status(400).json({ error: 'Cell number already exists' });
-    }
-
     const result = await Cell.add(req.body);
     console.log('Cell added with ID:', result.insertId);
     res.status(201).json({ id: result.insertId, ...req.body });
@@ -74,12 +68,6 @@ exports.updateCell = async (req, res) => {
   }
   
   try {
-    // Check if cell number already exists (excluding current cell)
-    const existingCell = await Cell.getByCellNumber(req.body.cell_number);
-    if (existingCell && existingCell.id !== parseInt(req.params.id)) {
-      return res.status(400).json({ error: 'Cell number already exists' });
-    }
-
     await Cell.update(req.params.id, req.body);
     console.log('Cell updated with id:', req.params.id);
     res.json({ message: 'Cell updated' });

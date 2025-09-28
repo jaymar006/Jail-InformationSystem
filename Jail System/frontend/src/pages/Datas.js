@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import './common.css';
 import Header from './Header';
 
+// eslint-disable-next-line no-unused-vars
 const formatDateOnly = (dateStr) => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -170,6 +171,7 @@ const Datas = () => {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const exportVisitorsToExcel = async (pdls) => {
     try {
       console.log('Exporting visitors for pdls in order:', pdls.map(p => p.id));
@@ -551,9 +553,6 @@ const Datas = () => {
       // Set total count for progress tracking
       setPdlImportProgress({ current: 0, total: rows.length });
 
-      let success = 0;
-      let failed = 0;
-      let skipped = 0;
       const errors = [];
       const importResults = { success: [], skipped: [], errors: [] };
 
@@ -620,7 +619,6 @@ const Datas = () => {
 
         // Basic validation
         if (!payload.last_name || !payload.first_name || !payload.cell_number) {
-          failed += 1;
           errors.push(`Row ${index + 2}: Missing required fields (Name or Last Name/First Name, Cell Number/Dorm Number)`);
           continue;
         }
@@ -634,7 +632,6 @@ const Datas = () => {
 
         if (existingPdl) {
           // PDL already exists, skip it
-          skipped += 1;
           importResults.skipped.push({
             pdl: `${payload.last_name}, ${payload.first_name} ${payload.middle_name}`,
             reason: 'already_exists'
@@ -643,12 +640,10 @@ const Datas = () => {
         } else {
           try {
             await axios.post('/pdls', payload);
-            success += 1;
             importResults.success.push({
               pdl: `${payload.last_name}, ${payload.first_name} ${payload.middle_name}`
             });
           } catch (err) {
-            failed += 1;
             const errorMessage = err.response?.data?.error || err.message;
             errors.push(`Row ${index + 2}: ${errorMessage}`);
             importResults.errors.push({
@@ -865,7 +860,6 @@ const Datas = () => {
       const existingByName = new Map();
       freshPdls.forEach(p => existingByName.set(nameKey(p.last_name, p.first_name, p.middle_name || ''), p));
 
-      let visitorCreates = 0;
       const errors = [];
       let lastPdlData = { last_name: '', first_name: '', middle_name: '' };
       const importQueue = [];
@@ -957,7 +951,6 @@ const Datas = () => {
         if (result) {
           if (result.type === 'success') {
             importResults.success.push(result);
-            visitorCreates += 1;
           } else if (result.type === 'skipped') {
             importResults.skipped.push(result);
           } else if (result.type === 'error') {

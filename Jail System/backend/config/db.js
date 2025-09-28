@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS cells (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  cell_number TEXT NOT NULL UNIQUE,
+  cell_number TEXT NOT NULL,
   cell_name TEXT,
   capacity INTEGER DEFAULT 1,
   status TEXT DEFAULT 'active',

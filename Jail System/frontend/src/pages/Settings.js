@@ -30,6 +30,7 @@ const Settings = () => {
     capacity: 1,
     status: 'active'
   });
+  const [customCellName, setCustomCellName] = useState('');
   const [editingCell, setEditingCell] = useState(null);
 
   // Logs management state
@@ -91,6 +92,7 @@ const Settings = () => {
       capacity: 1,
       status: 'active'
     });
+    setCustomCellName('');
     setEditingCell(null);
   };
 
@@ -166,12 +168,27 @@ const Settings = () => {
   // Cell management functions
   const handleCellSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate that if "Other" is selected, a custom name is provided
+    if (cellForm.cell_name === 'Other' && !customCellName.trim()) {
+      alert('Please enter a custom cell name when "Other" is selected.');
+      return;
+    }
+    
     try {
+      // Use custom cell name if "Other" is selected and custom name is provided
+      const cellData = {
+        ...cellForm,
+        cell_name: cellForm.cell_name === 'Other' && customCellName.trim() 
+          ? customCellName.trim() 
+          : cellForm.cell_name
+      };
+
       if (editingCell) {
-        await axios.put(`/api/cells/${editingCell.id}`, cellForm);
+        await axios.put(`/api/cells/${editingCell.id}`, cellData);
         alert('Cell updated successfully!');
       } else {
-        await axios.post('/api/cells', cellForm);
+        await axios.post('/api/cells', cellData);
         alert('Cell added successfully!');
       }
       
@@ -193,6 +210,16 @@ const Settings = () => {
       capacity: cell.capacity || 1,
       status: cell.status || 'active'
     });
+    
+    // Check if the cell name is not one of the predefined options
+    const predefinedNames = ['Quarantine', 'Cell', 'Other'];
+    if (cell.cell_name && !predefinedNames.includes(cell.cell_name)) {
+      setCellForm(prev => ({ ...prev, cell_name: 'Other' }));
+      setCustomCellName(cell.cell_name);
+    } else {
+      setCustomCellName('');
+    }
+    
     setModalOpen('editCell');
   };
 
@@ -266,17 +293,6 @@ const Settings = () => {
     }
   };
 
-  const handleDeleteSpecificLog = async (logId) => {
-    try {
-      const response = await axios.delete(`/api/scanned_visitors/${logId}`);
-      if (response.data.message === 'Scanned visitor deleted successfully') {
-        alert(`Log with ID ${logId} deleted successfully.`);
-      }
-    } catch (err) {
-      console.error('Failed to delete specific log:', err);
-      alert(`Failed to delete log: ${err.response?.data?.error || err.message}`);
-    }
-  };
 
   // Fetch all logs for selection
   const fetchLogs = async () => {
@@ -439,7 +455,6 @@ const Settings = () => {
         {modalOpen === 'cell' && (
           <Modal onClose={closeModal}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3>Manage Cells</h3>
               <button 
                 className="add-cell-btn"
                 onClick={() => {
@@ -450,19 +465,22 @@ const Settings = () => {
                     capacity: 1,
                     status: 'active'
                   });
+                  setCustomCellName('');
                   setModalOpen('editCell');
                 }}
               >
                 + Add New Cell
               </button>
+              <h3 style={{ margin: 0, flex: 1, textAlign: 'center' }}>Manage Cells</h3>
+              <div style={{ width: '120px' }}></div>
             </div>
             
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               <table className="cell-management-table">
                 <thead>
                   <tr>
-                    <th>Cell Number</th>
                     <th>Cell Name</th>
+                    <th>Cell Number</th>
                     <th>Capacity</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -471,8 +489,8 @@ const Settings = () => {
                 <tbody>
                   {cells.map((cell) => (
                     <tr key={cell.id}>
-                      <td>{cell.cell_number}</td>
                       <td>{cell.cell_name || '-'}</td>
+                      <td>{cell.cell_number}</td>
                       <td>{cell.capacity}</td>
                       <td>
                         <span className={`status-badge ${cell.status}`}>
@@ -518,13 +536,36 @@ const Settings = () => {
               />
               
               <label htmlFor="cell_name">Cell Name:</label>
-              <input
-                type="text"
+              <select
                 id="cell_name"
                 value={cellForm.cell_name}
-                onChange={(e) => setCellForm({ ...cellForm, cell_name: e.target.value })}
-                placeholder="Optional cell name"
-              />
+                onChange={(e) => {
+                  setCellForm({ ...cellForm, cell_name: e.target.value });
+                  // Clear custom name when switching away from "Other"
+                  if (e.target.value !== 'Other') {
+                    setCustomCellName('');
+                  }
+                }}
+              >
+                <option value="">Select Cell Type</option>
+                <option value="Quarantine">Quarantine</option>
+                <option value="Cell">Cell</option>
+                <option value="Other">Other</option>
+              </select>
+              
+              {cellForm.cell_name === 'Other' && (
+                <>
+                  <label htmlFor="custom_cell_name">Custom Cell Name:</label>
+                  <input
+                    type="text"
+                    id="custom_cell_name"
+                    value={customCellName}
+                    onChange={(e) => setCustomCellName(e.target.value)}
+                    placeholder="Enter custom cell name"
+                    required
+                  />
+                </>
+              )}
               
               <label htmlFor="capacity">Capacity:</label>
               <input
@@ -533,7 +574,6 @@ const Settings = () => {
                 value={cellForm.capacity}
                 onChange={(e) => setCellForm({ ...cellForm, capacity: parseInt(e.target.value) || 1 })}
                 min="1"
-                max="100"
               />
               
               <label htmlFor="status">Status:</label>
