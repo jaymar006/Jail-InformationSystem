@@ -10,7 +10,7 @@ const cellRoutes = require('./routes/cellRoutes');
 
 const app = express();
 const corsOptions = {
-  origin: 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 204
@@ -22,6 +22,15 @@ app.use('/pdls', pdlRoutes);
 app.use('/api/cells', cellRoutes);
 app.use('/api', visitorRoutes);
 app.use('/auth', authRoutes);
+
+// Health check endpoint for deployment platforms
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Server is running!',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Test route to verify server is working
 app.get('/test', (req, res) => {
