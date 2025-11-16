@@ -146,6 +146,11 @@ const Datas = () => {
     first_time_offender: 'No',
   });
   const [availableCells, setAvailableCells] = useState([]);
+  
+  // Dropdown states
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [importDropdownOpen, setImportDropdownOpen] = useState(false);
+  const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
 
   const openEditModal = (pdl) => {
     const normalizedPdl = {
@@ -161,6 +166,24 @@ const Datas = () => {
     fetchPdls();
     fetchAvailableCells();
   }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('[data-dropdown]')) {
+        setExportDropdownOpen(false);
+        setImportDropdownOpen(false);
+        setTemplateDropdownOpen(false);
+      }
+    };
+
+    if (exportDropdownOpen || importDropdownOpen || templateDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [exportDropdownOpen, importDropdownOpen, templateDropdownOpen]);
 
   const fetchAvailableCells = async () => {
     try {
@@ -193,11 +216,10 @@ const Datas = () => {
 
       pdls.forEach(pdl => {
         const pdlVisitors = visitorsByPdl[pdl.id] || [];
+        const cellDisplay = formatCellNumber(pdl.cell_number);
+        
         if (pdlVisitors.length === 0) {
           // Include pdl with no visitors
-          const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
-          const cellDisplay = cell && cell.cell_name ? `${cell.cell_name} - ${pdl.cell_number}` : pdl.cell_number;
-          
           dataToExport.push({
             'PDL Last Name': pdl.last_name || '',
             'PDL First Name': pdl.first_name || '',
@@ -221,9 +243,6 @@ const Datas = () => {
             return 0;
           });
           sortedVisitors.forEach((visitor, index) => {
-            const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
-            const cellDisplay = cell && cell.cell_name ? `${pdl.cell_number} - ${cell.cell_name}` : pdl.cell_number;
-            
             dataToExport.push({
               'PDL Last Name': index === 0 ? (pdl.last_name || '') : '',
               'PDL First Name': index === 0 ? (pdl.first_name || '') : '',
@@ -306,6 +325,25 @@ const Datas = () => {
     const parts = dateStr.split('-');
     if (parts.length !== 3) return dateStr;
     return `${parts[1]}/${parts[2]}/${parts[0]}`;
+  };
+
+  // Helper function to format cell number consistently as "Name - Number"
+  const formatCellNumber = (pdlCellNumber) => {
+    if (!pdlCellNumber) return '';
+    
+    // If already in "Name - Number" format, return as is
+    if (pdlCellNumber.includes(' - ')) {
+      return pdlCellNumber;
+    }
+    
+    // Try to find cell and format it
+    const cell = availableCells.find(c => c.cell_number === pdlCellNumber);
+    if (cell && cell.cell_name) {
+      return `${cell.cell_name} - ${cell.cell_number}`;
+    }
+    
+    // Fallback: return as is if no match found
+    return pdlCellNumber;
   };
 
   const handlePdlClick = (pdl) => {
@@ -1017,14 +1055,38 @@ const Datas = () => {
     if (searchTerm.trim()) {
       const searchLower = searchTerm.toLowerCase().trim();
       filtered = filtered.filter(pdl => {
+        // Search in cell number - check both full format and extract parts
+        let cellMatches = false;
+        if (pdl.cell_number) {
+          const cellLower = pdl.cell_number.toLowerCase();
+          // Check if search matches the full cell number string
+          if (cellLower.includes(searchLower)) {
+            cellMatches = true;
+          } else {
+            // Extract cell name and number parts for separate matching
+            // Format is "Name - Number" or just "Number"
+            if (cellLower.includes(' - ')) {
+              const [cellName, cellNumber] = cellLower.split(' - ');
+              if (cellName.includes(searchLower) || cellNumber.includes(searchLower)) {
+                cellMatches = true;
+              }
+            } else {
+              // If no " - " separator, treat entire value as number
+              if (cellLower.includes(searchLower)) {
+                cellMatches = true;
+              }
+            }
+          }
+        }
+        
         return (
-          pdl.last_name.toLowerCase().includes(searchLower) ||
-          pdl.first_name.toLowerCase().includes(searchLower) ||
+          (pdl.last_name && pdl.last_name.toLowerCase().includes(searchLower)) ||
+          (pdl.first_name && pdl.first_name.toLowerCase().includes(searchLower)) ||
           (pdl.middle_name && pdl.middle_name.toLowerCase().includes(searchLower)) ||
           (pdl.criminal_case_no && pdl.criminal_case_no.toLowerCase().includes(searchLower)) ||
           (pdl.offense_charge && pdl.offense_charge.toLowerCase().includes(searchLower)) ||
           (pdl.court_branch && pdl.court_branch.toLowerCase().includes(searchLower)) ||
-          (pdl.cell_number && pdl.cell_number.toLowerCase().includes(searchLower))
+          cellMatches
         );
       });
     }
@@ -1061,6 +1123,56 @@ const Datas = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentPdls = filteredSortedPdls.slice(startIndex, startIndex + itemsPerPage);
 
+  // Smart pagination: Generate page numbers with ellipsis
+  const getPaginationPages = () => {
+    const pages = [];
+    const maxVisible = 7; // Maximum number of page buttons to show
+    const sidePages = 2; // Number of pages to show on each side of current page
+
+    if (totalPages <= maxVisible) {
+      // Show all pages if total is less than max
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    // Always show first page
+    pages.push(1);
+
+    let startPage = Math.max(2, currentPage - sidePages);
+    let endPage = Math.min(totalPages - 1, currentPage + sidePages);
+
+    // Adjust if we're near the start
+    if (currentPage <= sidePages + 2) {
+      endPage = Math.min(maxVisible - 1, totalPages - 1);
+    }
+
+    // Adjust if we're near the end
+    if (currentPage >= totalPages - sidePages - 1) {
+      startPage = Math.max(2, totalPages - maxVisible + 2);
+    }
+
+    // Add ellipsis after first page if needed
+    if (startPage > 2) {
+      pages.push('ellipsis-start');
+    }
+
+    // Add middle pages
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    // Add ellipsis before last page if needed
+    if (endPage < totalPages - 1) {
+      pages.push('ellipsis-end');
+    }
+
+    // Always show last page
+    if (totalPages > 1) {
+      pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
   // Update selectAll state when individual checkboxes change
   useEffect(() => {
     if (currentPdls.length === 0) {
@@ -1076,7 +1188,7 @@ const Datas = () => {
         'Last Name': pdl.last_name || '',
         'First Name': pdl.first_name || '',
         'Middle Name': pdl.middle_name || '',
-        'Cell Number': pdl.cell_number || '',
+        'Cell Number': formatCellNumber(pdl.cell_number),
         'Criminal Case No.': pdl.criminal_case_no || '',
         'Offense Charge': pdl.offense_charge || '',
         'Court Branch': pdl.court_branch || '',
@@ -1133,10 +1245,9 @@ const exportPdlsWithVisitorsToExcel = async () => {
     const sortedPdls = [...filteredSortedPdls];
     sortedPdls.forEach(pdl => {
       const pdlVisitors = (visitorsByPdl[pdl.id] || []).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      const cellDisplay = formatCellNumber(pdl.cell_number);
+      
       if (pdlVisitors.length === 0) {
-        const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
-        const cellDisplay = cell && cell.cell_name ? `${pdl.cell_number} - ${cell.cell_name}` : pdl.cell_number;
-        
         // Create combined PDL name in format "Last Name, First Name Middle Name"
         const pdlName = `${pdl.last_name || ''}, ${pdl.first_name || ''} ${pdl.middle_name || ''}`.trim().replace(/,\s*$/, '');
         
@@ -1153,9 +1264,6 @@ const exportPdlsWithVisitorsToExcel = async () => {
         });
       } else {
         pdlVisitors.forEach((v, idx) => {
-          const cell = availableCells.find(c => c.cell_number === pdl.cell_number);
-          const cellDisplay = cell && cell.cell_name ? `${cell.cell_name} - ${pdl.cell_number}` : pdl.cell_number;
-          
           // Create combined PDL name in format "Last Name, First Name Middle Name"
           const pdlName = `${pdl.last_name || ''}, ${pdl.first_name || ''} ${pdl.middle_name || ''}`.trim().replace(/,\s*$/, '');
           
@@ -1239,13 +1347,16 @@ const exportPdlsWithVisitorsToExcel = async () => {
             PDL Visitors Management
           </h2>
           
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
+            {/* Add PDL Button */}
             <button className="common-button add" type="button" onClick={() => setShowAddModal(true)}>
               <svg className="button-icon" viewBox="0 0 24 24">
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
               </svg>
               Add a PDL
             </button>
+
+            {/* Delete Selected Button (conditional) */}
             {selectedPdlIds.length > 0 && (
               <button className="common-button delete" type="button" onClick={handleBulkDelete}>
                 <svg className="button-icon" viewBox="0 0 24 24">
@@ -1254,86 +1365,326 @@ const exportPdlsWithVisitorsToExcel = async () => {
                 Delete Selected ({selectedPdlIds.length})
               </button>
             )}
-            <button className="common-button export" type="button" onClick={exportToExcel}>
-              <svg className="button-icon" viewBox="0 0 24 24">
-                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-              </svg>
-              Export PDL
-            </button>
-            <button className="common-button export" type="button" onClick={exportVisitorsToExcelLinkHandler}>
-              <svg className="button-icon" viewBox="0 0 24 24">
-                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-              </svg>
-              Export PDL with Visitors
-            </button>
-            <button 
-              className="common-button" 
-              type="button" 
-              onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              disabled={isImportingPdls}
-              style={{ 
-                opacity: isImportingPdls ? 0.6 : 1,
-                cursor: isImportingPdls ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isImportingPdls ? (
-                <>
-                  <svg className="button-icon" viewBox="0 0 24 24" style={{ 
-                    animation: 'spin 1s linear infinite',
-                    transformOrigin: 'center'
-                  }}>
-                    <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
-                  </svg>
-                  Importing... ({pdlImportProgress.current}/{pdlImportProgress.total})
-                </>
-              ) : (
-                <>
-                  <svg className="button-icon" viewBox="0 0 24 24">
-                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                  </svg>
-                  Import PDLs
-                </>
+
+            {/* Export Dropdown */}
+            <div style={{ position: 'relative', display: 'inline-block' }} data-dropdown>
+              <button 
+                className="common-button export" 
+                type="button" 
+                onClick={() => {
+                  setExportDropdownOpen(!exportDropdownOpen);
+                  setImportDropdownOpen(false);
+                  setTemplateDropdownOpen(false);
+                }}
+                style={{ position: 'relative' }}
+              >
+                <svg className="button-icon" viewBox="0 0 24 24">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Export
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '4px' }}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              {exportDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '4px',
+                  background: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                  zIndex: 1000,
+                  minWidth: '220px',
+                  overflow: 'hidden'
+                }}>
+                  <button
+                    onClick={() => {
+                      exportToExcel();
+                      setExportDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      border: 'none',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontSize: '14px',
+                      color: '#374151',
+                      transition: 'background 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.target.style.background = 'white'}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                    </svg>
+                    Export PDL
+                  </button>
+                  <button
+                    onClick={() => {
+                      exportVisitorsToExcelLinkHandler();
+                      setExportDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      border: 'none',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontSize: '14px',
+                      color: '#374151',
+                      borderTop: '1px solid #f3f4f6',
+                      transition: 'background 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.target.style.background = 'white'}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                    </svg>
+                    Export PDL with Visitors
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
+
+            {/* Import Dropdown */}
+            <div style={{ position: 'relative', display: 'inline-block' }} data-dropdown>
+              <button 
+                className="common-button export" 
+                type="button" 
+                onClick={() => {
+                  if (!isImportingPdls && !isImporting) {
+                    setImportDropdownOpen(!importDropdownOpen);
+                    setExportDropdownOpen(false);
+                    setTemplateDropdownOpen(false);
+                  }
+                }}
+                disabled={isImportingPdls || isImporting}
+                style={{ 
+                  opacity: (isImportingPdls || isImporting) ? 0.6 : 1,
+                  cursor: (isImportingPdls || isImporting) ? 'not-allowed' : 'pointer',
+                  position: 'relative'
+                }}
+              >
+                {(isImportingPdls || isImporting) ? (
+                  <>
+                    <svg className="button-icon" viewBox="0 0 24 24" style={{ 
+                      animation: 'spin 1s linear infinite',
+                      transformOrigin: 'center'
+                    }}>
+                      <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                    </svg>
+                    Importing... ({isImportingPdls ? pdlImportProgress.current : importProgress.current}/{isImportingPdls ? pdlImportProgress.total : importProgress.total})
+                  </>
+                ) : (
+                  <>
+                    <svg className="button-icon" viewBox="0 0 24 24">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Import
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '4px' }}>
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </>
+                )}
+              </button>
+              {importDropdownOpen && !isImportingPdls && !isImporting && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '4px',
+                  background: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                  zIndex: 1000,
+                  minWidth: '220px',
+                  overflow: 'hidden'
+                }}>
+                  <button
+                    onClick={() => {
+                      fileInputRef.current && fileInputRef.current.click();
+                      setImportDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      border: 'none',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontSize: '14px',
+                      color: '#374151',
+                      transition: 'background 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.target.style.background = 'white'}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Import PDLs
+                  </button>
+                  <button
+                    onClick={() => {
+                      fileInputVisitorsRef.current && fileInputVisitorsRef.current.click();
+                      setImportDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      border: 'none',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontSize: '14px',
+                      color: '#374151',
+                      borderTop: '1px solid #f3f4f6',
+                      transition: 'background 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.target.style.background = 'white'}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    Import PDL with Visitors
+                  </button>
+                </div>
+              )}
+            </div>
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportFileChange} />
-            <button 
-              className="common-button" 
-              type="button" 
-              onClick={() => fileInputVisitorsRef.current && fileInputVisitorsRef.current.click()}
-              disabled={isImporting}
-              style={{ 
-                opacity: isImporting ? 0.6 : 1,
-                cursor: isImporting ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isImporting ? (
-                <>
-                  <svg className="button-icon" viewBox="0 0 24 24" style={{ 
-                    animation: 'spin 1s linear infinite',
-                    transformOrigin: 'center'
-                  }}>
-                    <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
-                  </svg>
-                  Importing... ({importProgress.current}/{importProgress.total})
-                </>
-              ) : (
-                <>
-                  <svg className="button-icon" viewBox="0 0 24 24">
-                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                  </svg>
-                  Import PDL with Visitors
-                </>
-              )}
-            </button>
             <input ref={fileInputVisitorsRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportPdlsWithVisitorsFileChange} />
+
+            {/* Download Template Dropdown */}
+            <div style={{ position: 'relative', display: 'inline-block' }} data-dropdown>
+              <button 
+                className="common-button export"
+                type="button" 
+                onClick={() => {
+                  setTemplateDropdownOpen(!templateDropdownOpen);
+                  setExportDropdownOpen(false);
+                  setImportDropdownOpen(false);
+                }}
+                style={{ position: 'relative' }}
+              >
+                <svg className="button-icon" viewBox="0 0 24 24">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                Download Template
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: '4px' }}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              {templateDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '4px',
+                  background: 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                  zIndex: 1000,
+                  minWidth: '240px',
+                  overflow: 'hidden'
+                }}>
+                  <button
+                    onClick={() => {
+                      downloadPdlTemplateLinkHandler();
+                      setTemplateDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      border: 'none',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontSize: '14px',
+                      color: '#374151',
+                      transition: 'background 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#fffbeb'}
+                    onMouseLeave={(e) => e.target.style.background = 'white'}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    PDL Template
+                  </button>
+                  <button
+                    onClick={() => {
+                      downloadPdlWithVisitorsTemplateLinkHandler();
+                      setTemplateDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      border: 'none',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      fontSize: '14px',
+                      color: '#374151',
+                      borderTop: '1px solid #f3f4f6',
+                      transition: 'background 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#fffbeb'}
+                    onMouseLeave={(e) => e.target.style.background = 'white'}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    PDL with Visitors Template
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', justifyContent: 'center' }}>
-          <span role="button" tabIndex={0} onClick={downloadPdlTemplateLinkHandler} onKeyDown={(e) => e.key === 'Enter' && downloadPdlTemplateLinkHandler()} style={{ color: '#4b5563', textDecoration: 'underline', cursor: 'pointer', fontWeight: '500' }}>Download PDL Template</span>
-          <span role="button" tabIndex={0} onClick={downloadPdlWithVisitorsTemplateLinkHandler} onKeyDown={(e) => e.key === 'Enter' && downloadPdlWithVisitorsTemplateLinkHandler()} style={{ color: '#4b5563', textDecoration: 'underline', cursor: 'pointer', fontWeight: '500' }}>Download PDL with Visitors Template</span>
-        </div>
-
+        <h3 style={{ textAlign: 'center', margin: '20px 0 16px 0', fontSize: '20px', fontWeight: '600', color: '#111827' }}>PDL Lists</h3>
+        
         <div className="search-filter-container">
           <div style={{ 
             display: 'grid', 
@@ -1510,8 +1861,6 @@ const exportPdlsWithVisitorsToExcel = async () => {
           </div>
         </div>
         
-        <h3 style={{ textAlign: 'center', margin: '20px 0 16px 0', fontSize: '20px', fontWeight: '600', color: '#111827' }}>PDL Lists</h3>
-        
         <table className="common-table">
           <thead>
             <tr>
@@ -1538,8 +1887,12 @@ const exportPdlsWithVisitorsToExcel = async () => {
           </thead>
           <tbody>
             {currentPdls.map((pdl) => (
-              <tr key={pdl.id}>
-                <td>
+              <tr 
+                key={pdl.id}
+                onClick={() => handlePdlClick(pdl)}
+                style={{ cursor: 'pointer' }}
+              >
+                <td onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={selectedPdlIds.includes(pdl.id)}
@@ -1547,7 +1900,7 @@ const exportPdlsWithVisitorsToExcel = async () => {
                     onClick={(e) => e.stopPropagation()}
                   />
                 </td>
-                <td onClick={() => handlePdlClick(pdl)} style={{ cursor: 'pointer' }}>{pdl.last_name}</td>
+                <td>{pdl.last_name}</td>
                 <td>{pdl.first_name}</td>
                 <td>{pdl.middle_name}</td>
                 <td>
@@ -1562,14 +1915,28 @@ const exportPdlsWithVisitorsToExcel = async () => {
                 <td>{formatDate(pdl.arrest_date)}</td>
                 <td>{formatDate(pdl.commitment_date)}</td>
                 <td>{pdl.first_time_offender === 1 || pdl.first_time_offender === '1' ? 'Yes' : 'No'}</td>
-                <td>
+                <td onClick={(e) => e.stopPropagation()}>
                   <div className="action-buttons-row">
-                    <button className="common-button edit" onClick={() => openEditModal(pdl)} title="Edit PDL">
+                    <button 
+                      className="common-button edit" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(pdl);
+                      }} 
+                      title="Edit PDL"
+                    >
                       <svg className="button-icon" viewBox="0 0 24 24">
                         <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                       </svg>
                     </button>
-                    <button className="common-button delete" onClick={() => handleDelete(pdl.id)} title="Delete PDL">
+                    <button 
+                      className="common-button delete" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(pdl.id);
+                      }} 
+                      title="Delete PDL"
+                    >
                       <svg className="button-icon" viewBox="0 0 24 24">
                         <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                       </svg>
@@ -1583,16 +1950,78 @@ const exportPdlsWithVisitorsToExcel = async () => {
 
         {totalPages > 1 && (
           <div className="pagination-container">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-              <button
-                key={pageNum}
-                className={`pagination-button ${currentPage === pageNum ? 'active' : ''}`}
-                onClick={() => setCurrentPage(pageNum)}
-                aria-label={`Go to page ${pageNum}`}
-              >
-                {pageNum}
-              </button>
-            ))}
+            <button
+              className="pagination-button pagination-nav"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              aria-label="Go to first page"
+              title="First page"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="11 17 6 12 11 7"/>
+                <polyline points="18 17 13 12 18 7"/>
+              </svg>
+            </button>
+            <button
+              className="pagination-button pagination-nav"
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              aria-label="Go to previous page"
+              title="Previous page"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+            </button>
+            
+            {getPaginationPages().map((pageNum, index) => {
+              if (pageNum === 'ellipsis-start' || pageNum === 'ellipsis-end') {
+                return (
+                  <span key={`ellipsis-${index}`} className="pagination-ellipsis">
+                    ...
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={pageNum}
+                  className={`pagination-button ${currentPage === pageNum ? 'active' : ''}`}
+                  onClick={() => setCurrentPage(pageNum)}
+                  aria-label={`Go to page ${pageNum}`}
+                  aria-current={currentPage === pageNum ? 'page' : undefined}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              className="pagination-button pagination-nav"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              aria-label="Go to next page"
+              title="Next page"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+            <button
+              className="pagination-button pagination-nav"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              aria-label="Go to last page"
+              title="Last page"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="13 17 18 12 13 7"/>
+                <polyline points="6 17 11 12 6 7"/>
+              </svg>
+            </button>
+            
+            <div className="pagination-info">
+              Page {currentPage} of {totalPages}
+            </div>
           </div>
         )}
       </main>
@@ -1700,11 +2129,14 @@ const exportPdlsWithVisitorsToExcel = async () => {
                         }}
                       >
                         <option value="">Select a cell...</option>
-                        {availableCells.map((cell) => (
-                          <option key={cell.id} value={cell.cell_number}>
-                            {cell.cell_number} {cell.cell_name ? `- ${cell.cell_name}` : ''}
-                          </option>
-                        ))}
+                        {availableCells.map((cell) => {
+                          const cellDisplay = cell.cell_name ? `${cell.cell_name} - ${cell.cell_number}` : cell.cell_number;
+                          return (
+                            <option key={cell.id} value={cellDisplay}>
+                              {cellDisplay}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   </div>
@@ -2016,11 +2448,14 @@ const exportPdlsWithVisitorsToExcel = async () => {
                         }}
                       >
                         <option value="">Select a cell...</option>
-                        {availableCells.map((cell) => (
-                          <option key={cell.id} value={cell.cell_number}>
-                            {cell.cell_number} {cell.cell_name ? `- ${cell.cell_name}` : ''}
-                          </option>
-                        ))}
+                        {availableCells.map((cell) => {
+                          const cellDisplay = cell.cell_name ? `${cell.cell_name} - ${cell.cell_number}` : cell.cell_number;
+                          return (
+                            <option key={cell.id} value={cellDisplay}>
+                              {cellDisplay}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   </div>

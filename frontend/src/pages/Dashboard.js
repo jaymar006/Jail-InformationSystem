@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './Header';
 import QRCodeScanner from '../components/QRCodeScanner';
+import { Html5Qrcode } from 'html5-qrcode';
 import api from '../services/api';
 import './Dashboard.css';
 
@@ -22,7 +23,44 @@ const Dashboard = () => {
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
   const [availableCells, setAvailableCells] = useState([]);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [scheduledCells, setScheduledCells] = useState(new Set());
+  const [scheduleDuration, setScheduleDuration] = useState(() => {
+    const saved = localStorage.getItem('scheduleDuration');
+    return saved !== null ? parseInt(saved, 10) : 12; // Default 12 hours
+  });
+  const [scheduledCells, setScheduledCells] = useState(() => {
+    // Load scheduled cells from localStorage on mount
+    try {
+      const saved = localStorage.getItem('scheduledCells');
+      if (saved) {
+        const data = JSON.parse(saved);
+        const savedDuration = localStorage.getItem('scheduleDuration');
+        const duration = savedDuration !== null ? parseInt(savedDuration, 10) : 12;
+        
+        // Check if schedule is still valid
+        if (duration === -1) {
+          // Indefinitely - always valid
+          return new Set(data.cellIds || []);
+        } else {
+          // Check if within duration
+          const now = Date.now();
+          const elapsed = (now - data.timestamp) / (1000 * 60 * 60); // hours
+          if (elapsed < duration) {
+            return new Set(data.cellIds || []);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading scheduled cells:', error);
+    }
+    return new Set();
+  });
+  const [qrUploadEnabled, setQrUploadEnabled] = useState(() => {
+    const saved = localStorage.getItem('qrUploadEnabled');
+    return saved !== null ? saved === 'true' : true; // Default to enabled
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const [isScanningFile, setIsScanningFile] = useState(false);
+  const fileInputRef = useRef(null);
 
   const formatTime = (isoString) => {
     if (!isoString) return '';
@@ -80,6 +118,90 @@ const Dashboard = () => {
     fetchAvailableCells();
   }, [fetchVisitors]);
 
+  // Listen for changes to QR upload setting and schedule duration from Settings page
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'qrUploadEnabled') {
+        setQrUploadEnabled(e.newValue === 'true');
+      } else if (e.key === 'scheduleDuration') {
+        const newDuration = e.newValue !== null ? parseInt(e.newValue, 10) : 12;
+        setScheduleDuration(newDuration);
+        
+        // Validate current scheduled cells against new duration
+        try {
+          const saved = localStorage.getItem('scheduledCells');
+          if (saved) {
+            const data = JSON.parse(saved);
+            if (newDuration === -1) {
+              // Indefinitely - keep all
+              setScheduledCells(new Set(data.cellIds || []));
+            } else {
+              // Check if still valid
+              const now = Date.now();
+              const elapsed = (now - data.timestamp) / (1000 * 60 * 60); // hours
+              if (elapsed < newDuration) {
+                setScheduledCells(new Set(data.cellIds || []));
+              } else {
+                // Expired - clear
+                setScheduledCells(new Set());
+                localStorage.removeItem('scheduledCells');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error validating scheduled cells:', error);
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Check for changes periodically (for same-tab updates)
+    const interval = setInterval(() => {
+      // Check QR upload setting
+      const savedQr = localStorage.getItem('qrUploadEnabled');
+      const currentQrValue = savedQr !== null ? savedQr === 'true' : true;
+      if (currentQrValue !== qrUploadEnabled) {
+        setQrUploadEnabled(currentQrValue);
+      }
+      
+      // Check schedule duration
+      const savedDuration = localStorage.getItem('scheduleDuration');
+      const currentDuration = savedDuration !== null ? parseInt(savedDuration, 10) : 12;
+      if (currentDuration !== scheduleDuration) {
+        setScheduleDuration(currentDuration);
+        
+        // Validate current scheduled cells
+        try {
+          const saved = localStorage.getItem('scheduledCells');
+          if (saved) {
+            const data = JSON.parse(saved);
+            if (currentDuration === -1) {
+              // Indefinitely - keep all
+              setScheduledCells(new Set(data.cellIds || []));
+            } else {
+              // Check if still valid
+              const now = Date.now();
+              const elapsed = (now - data.timestamp) / (1000 * 60 * 60); // hours
+              if (elapsed >= currentDuration) {
+                // Expired - clear
+                setScheduledCells(new Set());
+                localStorage.removeItem('scheduledCells');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error validating scheduled cells:', error);
+        }
+      }
+    }, 500);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [qrUploadEnabled, scheduleDuration]);
+
   const fetchAvailableCells = async () => {
     try {
       const response = await api.get('/api/cells/active');
@@ -89,21 +211,135 @@ const Dashboard = () => {
     }
   };
 
-  const handleCellScheduleToggle = (cellNumber) => {
+  const handleCellScheduleToggle = (cellId) => {
     setScheduledCells(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(cellNumber)) {
-        newSet.delete(cellNumber);
+      if (newSet.has(cellId)) {
+        newSet.delete(cellId);
       } else {
-        newSet.add(cellNumber);
+        newSet.add(cellId);
       }
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('scheduledCells', JSON.stringify({
+          cellIds: Array.from(newSet),
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        console.error('Error saving scheduled cells:', error);
+      }
+      
       return newSet;
     });
   };
 
-  const isCellScheduled = (cellNumber) => {
-    return scheduledCells.has(cellNumber);
+  const isCellScheduled = (cellId) => {
+    return scheduledCells.has(cellId);
   };
+
+  // Helper function to check if a cell number string matches any scheduled cell
+  const isCellNumberScheduled = (cellNumberString) => {
+    // Find the cell by matching the cell number string
+    const cell = availableCells.find(c => {
+      const cellDisplay = c.cell_name ? `${c.cell_name} - ${c.cell_number}` : c.cell_number;
+      return cellDisplay === cellNumberString || c.cell_number === cellNumberString;
+    });
+    return cell ? scheduledCells.has(cell.id) : false;
+  };
+
+  // QR File Upload Handler
+  const handleFileScan = async (file) => {
+    if (!file) return;
+    if (scanLocked || isScanningFile) return;
+
+    setIsScanningFile(true);
+    
+    // Create a temporary element for Html5Qrcode instance
+    const tempElementId = 'temp-qr-scanner-' + Date.now();
+    const tempElement = document.createElement('div');
+    tempElement.id = tempElementId;
+    tempElement.style.display = 'none';
+    document.body.appendChild(tempElement);
+    
+    let html5QrCode = null;
+    
+    try {
+      html5QrCode = new Html5Qrcode(tempElementId);
+      const decodedText = await html5QrCode.scanFile(file, true);
+      
+      if (decodedText) {
+        await handleScan(decodedText);
+      } else {
+        showToast('No QR code found in the image', 'error');
+      }
+    } catch (error) {
+      console.error('Error scanning file:', error);
+      if (error.message && (error.message.includes('No QR code found') || error.message.includes('QR code parse error'))) {
+        showToast('No QR code found in the image. Please try another image.', 'error');
+      } else {
+        showToast('Error scanning QR code from image', 'error');
+      }
+    } finally {
+      // Clean up: remove temp element
+      // Note: scanFile doesn't start the camera, so we don't need to stop anything
+      try {
+        if (tempElement && tempElement.parentNode) {
+          tempElement.parentNode.removeChild(tempElement);
+        }
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+        console.log('Cleanup error (ignored):', cleanupError);
+      }
+      
+      setIsScanningFile(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        showToast('Please select an image file', 'error');
+        return;
+      }
+      handleFileScan(file);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        showToast('Please drop an image file', 'error');
+        return;
+      }
+      handleFileScan(file);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  // Update localStorage when setting changes
+  useEffect(() => {
+    localStorage.setItem('qrUploadEnabled', qrUploadEnabled.toString());
+  }, [qrUploadEnabled]);
 
   const handleScan = async (data) => {
     if (!data) return;
@@ -128,7 +364,7 @@ const Dashboard = () => {
     }
 
     // Check if the cell is scheduled for visits
-    if (!isCellScheduled(cell)) {
+    if (!isCellNumberScheduled(cell)) {
       showToast(`Cell ${cell} is not scheduled for visits today. Please contact the administrator.`, 'error');
       return;
     }
@@ -394,8 +630,66 @@ const Dashboard = () => {
               Schedule
             </button>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
             <QRCodeScanner onScan={handleScan} onError={() => showToast('QR Scan error', 'error')} resetTrigger={resetTrigger} />
+            
+            {qrUploadEnabled && (
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  width: '320px',
+                  minHeight: '120px',
+                  border: `2px dashed ${isDragging ? '#10b981' : '#d1d5db'}`,
+                  borderRadius: '12px',
+                  padding: '20px',
+                  backgroundColor: isDragging ? '#f0fdf4' : '#f9fafb',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  textAlign: 'center'
+                }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileInputChange}
+                  style={{ display: 'none' }}
+                  disabled={isScanningFile}
+                />
+                {isScanningFile ? (
+                  <>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite', color: '#10b981' }}>
+                      <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                    </svg>
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Scanning QR code...</p>
+                  </>
+                ) : (
+                  <>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#6b7280' }}>
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <div>
+                      <p style={{ margin: '0 0 4px 0', color: '#111827', fontSize: '14px', fontWeight: '600' }}>
+                        Drop QR Code Image Here
+                      </p>
+                      <p style={{ margin: 0, color: '#6b7280', fontSize: '12px' }}>
+                        or click to browse
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </section>
 
@@ -509,123 +803,185 @@ const Dashboard = () => {
         {/* Purpose Selection Modal */}
         {showPurposeModal && (
           <div className="common-modal">
-            <div className="common-modal-content purpose-modal">
-              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                <div style={{ 
-                  background: 'linear-gradient(135deg, #4b5563 0%, #374151 100%)', 
-                  color: 'white', 
-                  padding: '16px', 
-                  borderRadius: '12px',
-                  marginBottom: '20px'
+            <div className="common-modal-content purpose-modal" style={{ maxWidth: '600px' }}>
+              {/* Header Section */}
+              <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                <div style={{
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                  border: '1px solid #e2e8f0',
+                  padding: '24px',
+                  borderRadius: '16px',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
                 }}>
-                  <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: '600' }}>Select Visit Purpose</h3>
-                  <div style={{ fontSize: '14px', opacity: '0.9' }}>
-                    <p style={{ margin: '4px 0' }}><strong>Visitor:</strong> {capitalizeWords(pendingScanData?.visitor_name)}</p>
-                    <p style={{ margin: '4px 0' }}><strong>PDL:</strong> {capitalizeWords(pendingScanData?.pdl_name)}</p>
-                    <p style={{ margin: '4px 0' }}><strong>Cell:</strong> {capitalizeWords(pendingScanData?.cell)}</p>
+                  <h3 style={{ 
+                    margin: '0 0 20px 0', 
+                    fontSize: '22px', 
+                    fontWeight: '700',
+                    color: '#0f172a',
+                    letterSpacing: '-0.5px'
+                  }}>
+                    Select Visit Purpose
+                  </h3>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: '16px',
+                    textAlign: 'left'
+                  }}>
+                    <div style={{
+                      padding: '12px',
+                      background: 'white',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                        Visitor
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: '500' }}>
+                        {capitalizeWords(pendingScanData?.visitor_name)}
+                      </div>
+                    </div>
+                    <div style={{
+                      padding: '12px',
+                      background: 'white',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                        PDL
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: '500' }}>
+                        {capitalizeWords(pendingScanData?.pdl_name)}
+                      </div>
+                    </div>
+                    <div style={{
+                      padding: '12px',
+                      background: 'white',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                        Cell
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: '500' }}>
+                        {capitalizeWords(pendingScanData?.cell)}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
               
+              {/* Purpose Buttons */}
               <div style={{ 
                 display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
-                gap: '20px',
-                marginBottom: '20px'
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                gap: '16px',
+                marginBottom: '24px'
               }}>
                 <button 
                   className="purpose-button conjugal" 
                   onClick={() => handlePurposeSelection('conjugal')}
                   style={{ 
-                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                    color: 'white',
-                    padding: '20px',
-                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                    color: '#991b1b',
+                    padding: '24px 20px',
+                    borderRadius: '16px',
                     textAlign: 'center',
                     cursor: 'pointer',
                     transition: 'all 0.3s ease',
-                    border: 'none',
-                    boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)',
+                    border: '2px solid #fecaca',
+                    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.08)',
                     position: 'relative',
                     overflow: 'hidden'
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 6px 20px rgba(220, 38, 38, 0.4)';
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(220, 38, 38, 0.15)';
+                    e.currentTarget.style.borderColor = '#fca5a5';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)';
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(220, 38, 38, 0.3)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(220, 38, 38, 0.08)';
+                    e.currentTarget.style.borderColor = '#fecaca';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)';
                   }}
                 >
                   <div style={{ 
-                    background: 'rgba(255, 255, 255, 0.1)', 
-                    borderRadius: '50%', 
-                    width: '60px', 
-                    height: '60px', 
-                    margin: '0 auto 12px',
+                    background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                    borderRadius: '12px', 
+                    width: '56px', 
+                    height: '56px', 
+                    margin: '0 auto 16px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 8px rgba(220, 38, 38, 0.2)'
                   }}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                       <circle cx="12" cy="7" r="4"/>
                       <path d="M12 14l3-3 3 3"/>
                     </svg>
                   </div>
-                  <h4 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600' }}>Conjugal Visit</h4>
-                  <p style={{ margin: '0', fontSize: '12px', opacity: '0.9' }}>Private family visit</p>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: '600', color: '#991b1b' }}>Conjugal Visit</h4>
+                  <p style={{ margin: '0', fontSize: '13px', color: '#7f1d1d', opacity: '0.8' }}>Private family visit</p>
                 </button>
                 
                 <button 
                   className="purpose-button normal" 
                   onClick={() => handlePurposeSelection('normal')}
                   style={{ 
-                    background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                    color: 'white',
-                    padding: '20px',
-                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                    color: '#166534',
+                    padding: '24px 20px',
+                    borderRadius: '16px',
                     textAlign: 'center',
                     cursor: 'pointer',
                     transition: 'all 0.3s ease',
-                    border: 'none',
-                    boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)',
+                    border: '2px solid #bbf7d0',
+                    boxShadow: '0 2px 8px rgba(5, 150, 105, 0.08)',
                     position: 'relative',
                     overflow: 'hidden'
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 6px 20px rgba(5, 150, 105, 0.4)';
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(5, 150, 105, 0.15)';
+                    e.currentTarget.style.borderColor = '#86efac';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)';
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(5, 150, 105, 0.3)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(5, 150, 105, 0.08)';
+                    e.currentTarget.style.borderColor = '#bbf7d0';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)';
                   }}
                 >
                   <div style={{ 
-                    background: 'rgba(255, 255, 255, 0.1)', 
-                    borderRadius: '50%', 
-                    width: '60px', 
-                    height: '60px', 
-                    margin: '0 auto 12px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    borderRadius: '12px', 
+                    width: '56px', 
+                    height: '56px', 
+                    margin: '0 auto 16px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 8px rgba(5, 150, 105, 0.2)'
                   }}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                       <circle cx="9" cy="7" r="4"/>
                       <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                       <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                     </svg>
                   </div>
-                  <h4 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600' }}>Normal Visit</h4>
-                  <p style={{ margin: '0', fontSize: '12px', opacity: '0.9' }}>Regular visitation</p>
+                  <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: '600', color: '#166534' }}>Normal Visit</h4>
+                  <p style={{ margin: '0', fontSize: '13px', color: '#15803d', opacity: '0.8' }}>Regular visitation</p>
                 </button>
               </div>
               
-              <div style={{ textAlign: 'center' }}>
+              {/* Cancel Button */}
+              <div style={{ textAlign: 'center', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
                 <button 
                   type="button" 
                   onClick={() => {
@@ -634,15 +990,28 @@ const Dashboard = () => {
                     setTimeout(() => setScanLocked(false), 500);
                   }}
                   style={{
-                    background: '#e5e7eb',
-                    color: '#374151',
-                    border: 'none',
-                    padding: '10px 20px',
-                    borderRadius: '8px',
+                    background: '#f8fafc',
+                    color: '#475569',
+                    border: '1px solid #e2e8f0',
+                    padding: '12px 32px',
+                    borderRadius: '10px',
                     fontSize: '14px',
-                    fontWeight: '500',
+                    fontWeight: '600',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = '#f1f5f9';
+                    e.target.style.borderColor = '#cbd5e1';
+                    e.target.style.transform = 'translateY(-1px)';
+                    e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = '#f8fafc';
+                    e.target.style.borderColor = '#e2e8f0';
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.05)';
                   }}
                 >
                   Cancel
@@ -722,8 +1091,8 @@ const Dashboard = () => {
                             alignItems: 'center', 
                             gap: '12px',
                             padding: '12px',
-                            background: isCellScheduled(cell.cell_number) ? '#ecfdf5' : '#fff',
-                            border: isCellScheduled(cell.cell_number) ? '2px solid #10b981' : '2px solid #e5e7eb',
+                            background: isCellScheduled(cell.id) ? '#ecfdf5' : '#fff',
+                            border: isCellScheduled(cell.id) ? '2px solid #10b981' : '2px solid #e5e7eb',
                             borderRadius: '8px',
                             cursor: 'pointer',
                             transition: 'all 0.2s ease'
@@ -731,8 +1100,8 @@ const Dashboard = () => {
                         >
                           <input
                             type="checkbox"
-                            checked={isCellScheduled(cell.cell_number)}
-                            onChange={() => handleCellScheduleToggle(cell.cell_number)}
+                            checked={isCellScheduled(cell.id)}
+                            onChange={() => handleCellScheduleToggle(cell.id)}
                             style={{
                               width: '18px',
                               height: '18px',
@@ -752,7 +1121,7 @@ const Dashboard = () => {
                               Capacity: {cell.capacity} | Status: {cell.status}
                             </div>
                           </div>
-                          {isCellScheduled(cell.cell_number) && (
+                          {isCellScheduled(cell.id) && (
                             <div style={{ 
                               background: '#10b981', 
                               color: 'white', 
@@ -785,7 +1154,14 @@ const Dashboard = () => {
                   <button 
                     type="button" 
                     onClick={() => {
-                      setScheduledCells(new Set());
+                      const emptySet = new Set();
+                      setScheduledCells(emptySet);
+                      // Clear from localStorage
+                      try {
+                        localStorage.removeItem('scheduledCells');
+                      } catch (error) {
+                        console.error('Error clearing scheduled cells:', error);
+                      }
                     }}
                     style={{
                       background: '#ef4444',
@@ -804,7 +1180,17 @@ const Dashboard = () => {
                   <button 
                     type="button" 
                     onClick={() => {
-                      setScheduledCells(new Set(availableCells.map(cell => cell.cell_number)));
+                      const allCellIds = new Set(availableCells.map(cell => cell.id));
+                      setScheduledCells(allCellIds);
+                      // Save to localStorage
+                      try {
+                        localStorage.setItem('scheduledCells', JSON.stringify({
+                          cellIds: Array.from(allCellIds),
+                          timestamp: Date.now()
+                        }));
+                      } catch (error) {
+                        console.error('Error saving scheduled cells:', error);
+                      }
                     }}
                     style={{
                       background: '#10b981',

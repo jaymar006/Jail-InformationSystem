@@ -471,6 +471,9 @@ const Logs = () => {
                 </button>
               </div>
             </div>
+          </section>
+
+          <h3 style={{ textAlign: 'center', margin: '20px 0 16px 0', fontSize: '20px', fontWeight: '600', color: '#111827' }}>Allowed Visitors</h3>
 
             {/* Filter Controls */}
             <div className="search-filter-container">
@@ -625,9 +628,6 @@ const Logs = () => {
                 </div>
               </div>
             </div>
-          </section>
-
-          <h3 style={{ textAlign: 'center' }}>Allowed Visitors</h3>
           <table className="common-table">
             <thead>
             <tr>
