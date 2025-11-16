@@ -42,7 +42,8 @@ const Header = ({ activePage }) => {
     navigate('/login');
   };
 
-  const toggleDropdown = () => {
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
     setDropdownOpen(!dropdownOpen);
   };
 
