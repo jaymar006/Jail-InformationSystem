@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Header from './Header';
 import axios from '../services/api';
 import './Settings.css';
 
@@ -411,7 +410,6 @@ const Settings = () => {
 
   return (
     <>
-      <Header />
       <div className="settings-container">
         <h2>Settings</h2>
         {username && (

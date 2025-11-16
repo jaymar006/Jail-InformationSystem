@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from '../services/api';
 import * as XLSX from 'xlsx';
 import './common.css';
-import Header from './Header';
 
 // eslint-disable-next-line no-unused-vars
 const formatDateOnly = (dateStr) => {
@@ -92,6 +91,7 @@ const Datas = () => {
 
   const fileInputRef = useRef(null);
   const fileInputVisitorsRef = useRef(null);
+  const tableWrapperRef = useRef(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -117,6 +117,13 @@ const Datas = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
+
+  // Reset table scroll position when page changes
+  useEffect(() => {
+    if (tableWrapperRef.current) {
+      tableWrapperRef.current.scrollTop = 0;
+    }
+  }, [currentPage]);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1322,7 +1329,6 @@ const exportPdlsWithVisitorsToExcel = async () => {
           }
         `}
       </style>
-      <Header activePage="Datas" />
 
       <main>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
@@ -1861,8 +1867,9 @@ const exportPdlsWithVisitorsToExcel = async () => {
           </div>
         </div>
         
-        <table className="common-table">
-          <thead>
+        <div className="table-wrapper" ref={tableWrapperRef}>
+          <table className="common-table">
+            <thead>
             <tr>
               <th>
                 <input
@@ -1947,6 +1954,7 @@ const exportPdlsWithVisitorsToExcel = async () => {
             ))}
           </tbody>
         </table>
+        </div>
 
         {totalPages > 1 && (
           <div className="pagination-container">

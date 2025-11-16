@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Header from './Header';
 import QRCodeScanner from '../components/QRCodeScanner';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../services/api';
@@ -545,8 +544,6 @@ const Dashboard = () => {
 
   return (
     <div>
-      <Header activePage="Dashboard" />
-      
       {/* Toast Notification */}
       {toast.show && (
         <div

@@ -5,7 +5,6 @@ import api from '../services/api';
 import './common.css';
 import './VisitorPage.css';
 import './VisitorPageIdPreview.css';
-import Header from './Header';
 import { QRCodeCanvas } from 'qrcode.react';
 import ID_Background from '../assets/ID_Background.png';
 import { toPng } from 'html-to-image';
@@ -354,8 +353,6 @@ const VisitorPage = () => {
 
   return (
     <div className="common-container">
-      <Header activePage="Visitors" />
-
       <main>
         <button
           onClick={() => navigate(-1)}

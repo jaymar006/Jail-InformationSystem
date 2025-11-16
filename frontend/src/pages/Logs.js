@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Header from './Header';
 import api from '../services/api';
 import './Dashboard.css';
 import './common.css';
@@ -305,7 +304,6 @@ const Logs = () => {
   if (loading) {
     return (
       <>
-        <Header activePage="Logs" />
         <div className="common-container">
           <main>
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
@@ -403,7 +401,6 @@ const Logs = () => {
   if (error) {
     return (
       <>
-        <Header activePage="Logs" />
         <div className="common-container p-4 error-message">{error}</div>
       </>
     );
@@ -411,7 +408,6 @@ const Logs = () => {
 
   return (
     <>
-      <Header activePage="Logs" />
       <div className="common-container">
         <main>
           <section className="p-4">

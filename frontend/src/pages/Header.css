@@ -12,7 +12,11 @@
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1000;
+  /* Ensure header is not affected by page transitions */
+  transform: translateZ(0);
+  /* Prevent page transition animations from affecting header */
+  isolation: isolate;
 }
 
 .header-left img {

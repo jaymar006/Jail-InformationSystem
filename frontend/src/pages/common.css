@@ -11,6 +11,13 @@ body, .common-container {
   width: 100vw;
   height: 100vh;
   box-sizing: border-box;
+  /* Prevent layout shifts during navigation */
+  overflow-x: hidden;
+  position: relative;
+  /* Smooth rendering */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .common-container main {
@@ -22,6 +29,26 @@ body, .common-container {
   box-sizing: border-box;
 }
 
+/* Table wrapper for scrollable table */
+.table-wrapper {
+  max-height: calc(100vh - 450px);
+  overflow-y: auto;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  background-color: #fff;
+  position: relative;
+}
+
+/* Sticky table header */
+.table-wrapper .common-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
 /* Table styles */
 .common-table {
   width: 100%;
@@ -30,11 +57,9 @@ body, .common-container {
   border-spacing: 0;
   background-color: #fff;
   border-radius: 10px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
   table-layout: auto;
   word-wrap: break-word;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  margin: 0;
 }
 
 .common-table th, .common-table td {
