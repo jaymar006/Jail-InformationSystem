@@ -4,6 +4,8 @@
   "description": "Jail Information System - Backend API",
   "main": "backend/server.js",
   "scripts": {
+    "setup": "node setup_env.js",
+    "postinstall": "node setup_env.js",
     "start": "cd backend && npm start",
     "install-backend": "cd backend && npm install",
     "install-frontend": "cd frontend && npm install",
