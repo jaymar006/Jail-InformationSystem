@@ -76,8 +76,9 @@ const Login = () => {
     e.preventDefault();
     setError('');
 
+    const apiUrl = process.env.REACT_APP_API_URL || window.location.origin;
     try {
-      const response = await fetch('http://localhost:3001/auth/login', {
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -111,8 +112,9 @@ const Login = () => {
       return;
     }
 
+    const apiUrl = process.env.REACT_APP_API_URL || window.location.origin;
     try {
-      const response = await fetch('http://localhost:3001/auth/signup', {
+      const response = await fetch(`${apiUrl}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -161,8 +163,9 @@ const Login = () => {
       return;
     }
 
+    const apiUrl = process.env.REACT_APP_API_URL || window.location.origin;
     try {
-      const response = await fetch('http://localhost:3001/auth/reset-password-security', {
+      const response = await fetch(`${apiUrl}/auth/reset-password-security`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

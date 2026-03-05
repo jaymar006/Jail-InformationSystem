@@ -10,9 +10,36 @@ const cellRoutes = require('./routes/cellRoutes');
 
 const app = express();
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // In production, allow all origins for mobile/network access
+    // This is safe because we're behind a firewall/network
+    if (process.env.NODE_ENV === 'production') {
+      // Log for debugging
+      console.log(`CORS: Allowing origin ${origin}`);
+      return callback(null, true);
+    }
+    
+    // Development: restrict to localhost
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
   optionsSuccessStatus: 204
 };
 app.use(cors(corsOptions));

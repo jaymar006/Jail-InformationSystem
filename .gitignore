@@ -137,3 +137,8 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Docker
+.docker/
+docker-compose.override.yml
+*.dockerignore.local
